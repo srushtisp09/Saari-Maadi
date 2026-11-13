@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import RecentReports from './RecentReports.jsx'
 
 export default function Home() {
   const { user, logout } = useAuth()
 
   return (
-    <main className="home-screen relative flex min-h-svh items-center justify-center overflow-hidden px-6 py-16">
+    <main className="home-screen relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-6 py-16">
       <div aria-hidden="true" className="home-sun" />
       <div aria-hidden="true" className="home-road">
         <span />
@@ -32,6 +33,9 @@ export default function Home() {
             <p className="rounded-full bg-white/80 px-5 py-3 font-semibold text-[#1b5e3a] shadow-sm">
               Namaskara, {user.name}!
             </p>
+            <Link className="home-auth-link home-auth-primary" to="/report">
+              Report a pothole <span aria-hidden="true">→</span>
+            </Link>
             <button type="button" className="home-auth-link" onClick={logout}>
               Log out
             </button>
@@ -51,6 +55,9 @@ export default function Home() {
           <span className="h-1 w-5 rounded-full bg-[#f4b400]" />
           <span className="h-1 w-3 rounded-full bg-[#c1272d]" />
         </div>
+      </div>
+      <div className="relative z-10 mt-20 w-full px-1">
+        <RecentReports />
       </div>
       <span className="sr-only">Sari Maadi, the Bengaluru pothole tracker.</span>
     </main>

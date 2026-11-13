@@ -474,6 +474,221 @@ button {
   opacity: 0.72;
 }
 
+.photo-input {
+  min-height: 48px;
+  border: 1px dashed rgb(27 94 58 / 34%);
+  border-radius: 0.9rem;
+  padding: 0.55rem;
+  background: #fffdf6;
+  color: #625d4f;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.photo-input::file-selector-button {
+  min-height: 34px;
+  margin-right: 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  background: #1b5e3a;
+  color: #fff8e7;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.photo-preview-wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.1rem;
+  background: #ebe6d7;
+}
+
+.photo-preview {
+  display: block;
+  width: 100%;
+  max-height: 19rem;
+  object-fit: cover;
+}
+
+.photo-preview-badge {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  max-width: calc(100% - 1.5rem);
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  background: rgb(40 39 31 / 76%);
+  color: #fff8e7;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border: 1px solid rgb(27 94 58 / 24%);
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.9rem;
+  background: #f5f7ed;
+  color: #1b5e3a;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.location-button:hover:not(:disabled) {
+  background: #edf2e4;
+}
+
+.location-button:focus-visible,
+.photo-input:focus-visible,
+.report-description:focus-visible {
+  outline: 3px solid #f4b400;
+  outline-offset: 3px;
+}
+
+.location-button:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.location-readout {
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: rgb(27 94 58 / 7%);
+  color: #1b5e3a;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.report-description {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #ded9c8;
+  border-radius: 0.9rem;
+  padding: 0.8rem 0.9rem;
+  background: #fffdf6;
+  color: #28271f;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.report-description::placeholder {
+  color: #a49e8d;
+}
+
+.report-result,
+.report-notice {
+  border: 1px solid rgb(27 94 58 / 16%);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgb(27 94 58 / 5%);
+  color: #494638;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.report-notice {
+  border-color: rgb(244 180 0 / 35%);
+  background: rgb(244 180 0 / 9%);
+}
+
+.result-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  background: #1b5e3a;
+  color: #fff8e7;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.result-chip-points {
+  background: #f4b400;
+  color: #393014;
+}
+
+.result-chip-status {
+  background: #f4b400;
+  color: #393014;
+}
+
+.report-another {
+  display: block;
+  margin: 1rem auto 0;
+  border: 0;
+  background: none;
+  color: #1b5e3a;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.report-loading-overlay {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgb(40 39 31 / 28%);
+  backdrop-filter: blur(4px);
+}
+
+.report-loading-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  background: #fff8e7;
+  color: #1b5e3a;
+  box-shadow: 0 16px 48px rgb(40 39 31 / 16%);
+}
+
+.report-spinner {
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 3px solid rgb(27 94 58 / 18%);
+  border-top-color: #c1272d;
+  border-radius: 50%;
+  animation: report-spin 0.8s linear infinite;
+}
+
+.recent-reports h2 {
+  margin: 0;
+}
+
+.recent-report-card {
+  overflow: hidden;
+  border: 1px solid rgb(27 94 58 / 12%);
+  border-radius: 1.2rem;
+  background: rgb(255 255 255 / 84%);
+  box-shadow: 0 8px 26px rgb(47 45 33 / 6%);
+}
+
+.recent-report-card > img {
+  display: block;
+  width: 100%;
+  height: 11rem;
+  background: #ebe6d7;
+  object-fit: cover;
+}
+
 @keyframes tree-sway {
   from { transform: rotate(-1.5deg); }
   to { transform: rotate(1.5deg); }
@@ -488,6 +703,10 @@ button {
   0% { transform: translateX(0); opacity: 0; }
   15% { opacity: 0.7; }
   100% { transform: translateX(-150vw); opacity: 0; }
+}
+
+@keyframes report-spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 600px) {

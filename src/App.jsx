@@ -4,6 +4,7 @@ import AuthProvider from './auth/AuthProvider.jsx'
 import Home from './components/Home.jsx'
 import Landing from './components/Landing.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
+import ReportPothole from './pages/ReportPothole.jsx'
 import AuthPage from './pages/AuthPage.jsx'
 
 const INTRO_KEY = 'sari-maadi-intro-seen'
@@ -60,6 +61,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/report"
+            element={
+              <ProtectedRoute>
+                <ReportPothole />
               </ProtectedRoute>
             }
           />
