@@ -14,6 +14,17 @@ export default function Home() {
         <span />
       </div>
 
+      <header className="home-navbar">
+        <Link className="home-brand" to="/home">
+          <span className="brand-mark" aria-hidden="true">ಸ</span>
+          <span className="font-baloo">Sari Maadi</span>
+        </Link>
+        <nav aria-label="Main navigation">
+          <Link to="/map">Map</Link>
+          {user && <Link to="/report">Report a pothole</Link>}
+        </nav>
+      </header>
+
       <div className="home-content relative z-10 mx-auto w-full max-w-3xl text-center">
         <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#1b5e3a]/15 bg-white/70 px-4 py-2 text-sm font-bold tracking-wide text-[#1b5e3a] shadow-sm">
           <span aria-hidden="true" className="brand-dot" />
@@ -36,6 +47,9 @@ export default function Home() {
             <Link className="home-auth-link home-auth-primary" to="/report">
               Report a pothole <span aria-hidden="true">→</span>
             </Link>
+            <Link className="home-auth-link" to="/map">
+              Map <span aria-hidden="true">⌖</span>
+            </Link>
             <button type="button" className="home-auth-link" onClick={logout}>
               Log out
             </button>
@@ -47,6 +61,9 @@ export default function Home() {
             </Link>
             <Link className="home-auth-link" to="/login">
               Log in
+            </Link>
+            <Link className="home-auth-link" to="/map">
+              Map <span aria-hidden="true">⌖</span>
             </Link>
           </div>
         )}

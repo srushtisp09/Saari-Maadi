@@ -30,6 +30,7 @@ const labels = {
     confidence: 'AI confidence',
     points: 'points earned',
     statusReported: 'Reported',
+    viewOnMap: 'View on map',
     successTitle: 'Thanks for helping Bengaluru!',
     aiSkipped: 'Your report is saved. The AI check was unavailable this time.',
     switchLanguage: 'ಕನ್ನಡ',
@@ -61,6 +62,7 @@ const labels = {
     confidence: 'AI ವಿಶ್ವಾಸ',
     points: 'ಅಂಕಗಳು ಗಳಿಸಲಾಗಿದೆ',
     statusReported: 'ವರದಿಯಾಗಿದೆ',
+    viewOnMap: 'ನಕ್ಷೆಯಲ್ಲಿ ನೋಡಿ',
     successTitle: 'ಬೆಂಗಳೂರಿಗೆ ಸಹಾಯ ಮಾಡಿದ್ದಕ್ಕೆ ಧನ್ಯವಾದಗಳು!',
     aiSkipped: 'ವರದಿ ಉಳಿಸಲಾಗಿದೆ. ಈ ಬಾರಿ AI ಪರಿಶೀಲನೆ ಲಭ್ಯವಿರಲಿಲ್ಲ.',
     switchLanguage: 'English',
@@ -291,13 +293,20 @@ export default function ReportPothole() {
         </form>
 
         {result?.report && (
-          <button
-            className="report-another"
-            type="button"
-            onClick={() => navigate('/home')}
-          >
-            {text.back}
-          </button>
+          <div className="report-success-actions">
+            <button
+              className="report-another"
+              type="button"
+              onClick={() => navigate(
+                `/map?lat=${result.report.location.coordinates[1]}&lng=${result.report.location.coordinates[0]}&id=${result.report.id}`,
+              )}
+            >
+              {text.viewOnMap} <span aria-hidden="true">→</span>
+            </button>
+            <button className="report-another" type="button" onClick={() => navigate('/home')}>
+              {text.back}
+            </button>
+          </div>
         )}
       </section>
       {isSubmitting && (

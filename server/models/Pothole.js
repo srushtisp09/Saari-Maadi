@@ -47,6 +47,11 @@ const potholeSchema = new mongoose.Schema({
     enum: ['reported', 'fixed'],
     default: 'reported',
   },
+  seeded: {
+    type: Boolean,
+    default: false,
+    select: false,
+  },
   ai: {
     checked: { type: Boolean, default: false },
     isPothole: { type: Boolean, default: false },

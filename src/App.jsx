@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AuthProvider from './auth/AuthProvider.jsx'
 import Home from './components/Home.jsx'
@@ -6,6 +6,9 @@ import Landing from './components/Landing.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ReportPothole from './pages/ReportPothole.jsx'
 import AuthPage from './pages/AuthPage.jsx'
+
+const MapPage = lazy(() => import('./pages/MapPage.jsx'))
+const PotholeDetail = lazy(() => import('./pages/PotholeDetail.jsx'))
 
 const INTRO_KEY = 'sari-maadi-intro-seen'
 
@@ -70,6 +73,22 @@ function App() {
               <ProtectedRoute>
                 <ReportPothole />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/map"
+            element={
+              <Suspense fallback={<main className="map-loading-screen">Loading map…</main>}>
+                <MapPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/potholes/:id"
+            element={
+              <Suspense fallback={<main className="map-loading-screen">Loading report…</main>}>
+                <PotholeDetail />
+              </Suspense>
             }
           />
           <Route path="*" element={<Navigate to="/" replace />} />

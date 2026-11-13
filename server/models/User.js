@@ -34,6 +34,11 @@ const userSchema = new mongoose.Schema({
     default: 0,
     min: 0,
   },
+  seeded: {
+    type: Boolean,
+    default: false,
+    select: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

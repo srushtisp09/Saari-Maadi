@@ -1,6 +1,6 @@
 # Sari Maadi
 
-Sari Maadi is a Bengaluru pothole tracker with an animated React landing page, an Express authentication API, and AI-assisted pothole reporting.
+Sari Maadi is a Bengaluru pothole tracker with an animated React landing page, an Express authentication API, AI-assisted pothole reporting, and a community pothole map.
 
 ## Run locally
 
@@ -19,6 +19,10 @@ Set `GEMINI_API_KEY` in `server/.env` to enable image assessment. The default `G
 
 Uploaded images are limited to JPEG, PNG, or WebP and 5 MB, and are stored in the ignored `server/uploads/` directory.
 
+## Map demo data
+
+The map uses Leaflet with OpenStreetMap tiles and needs no map API key. Seed 15 Bengaluru demo reports with `npm run seed`; remove only those demo reports with `npm run unseed`.
+
 ## API
 
 - `GET /api/health`
@@ -26,7 +30,8 @@ Uploaded images are limited to JPEG, PNG, or WebP and 5 MB, and are stored in th
 - `POST /api/auth/login` with `{ "email", "password" }`
 - `GET /api/auth/me` with `Authorization: Bearer <token>`
 - `POST /api/potholes` (authenticated multipart form: `photo`, `lat`, `lng`, optional `description`)
-- `GET /api/potholes` (newest reports first; `?mine=true` requires a bearer token)
+- `GET /api/potholes` (newest reports first; supports `status`, minimum `severity`, `limit`, `page`, and `mine=true`)
+- `GET /api/potholes/nearby?lat=12.97&lng=77.59&radius=500`
 - `GET /api/potholes/:id`
 
 The server can also be started separately with `npm --prefix server run dev`.

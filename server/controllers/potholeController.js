@@ -19,6 +19,27 @@ function publicReport(report) {
   }
 }
 
+function absolutePhotoUrl(req, report) {
+  if (!report.photoUrl || /^https?:\/\//i.test(report.photoUrl)) return report.photoUrl
+  const origin = `${req.protocol}://${req.get('host')}`
+  return `${origin}${report.photoUrl.startsWith('/') ? '' : '/'}${report.photoUrl}`
+}
+
+function serializeReport(req, report) {
+  const id = report.id ?? report._id.toString()
+  const reporter = report.reportedBy
+  return {
+    ...publicReport({ ...report, id }),
+    photoUrl: absolutePhotoUrl(req, report),
+    reportedBy: reporter
+      ? {
+          id: reporter._id?.toString?.() ?? reporter.id ?? reporter.toString(),
+          name: reporter.name,
+        }
+      : null,
+  }
+}
+
 async function removeUploadedFile(file) {
   if (!file?.storagePath) return
   try {
@@ -111,7 +132,7 @@ export async function createReport(req, res, next) {
     await fs.mkdir(directory, { recursive: true })
     await fs.writeFile(file.storagePath, file.buffer, { flag: 'wx' })
 
-    const report = await Pothole.create({
+    let report = await Pothole.create({
       reportedBy: req.user._id,
       photoUrl: `/uploads/${filename}`,
       description: req.body.description?.trim() || undefined,
@@ -125,10 +146,11 @@ export async function createReport(req, res, next) {
       pointsAwarded = 10
     }
 
+    report = await Pothole.findById(report._id).populate('reportedBy', 'name')
     const user = await User.findById(req.user._id).select('points')
     return res.status(201).json({
       message: aiSkippedMessage || 'Pothole report submitted successfully.',
-      report: publicReport(report),
+      report: serializeReport(req, report),
       pointsAwarded,
       totalPoints: user.points,
     })
@@ -144,21 +166,106 @@ export async function createReport(req, res, next) {
 
 export async function listReports(req, res, next) {
   try {
-    const filter = req.query.mine === 'true' ? { reportedBy: req.user._id } : {}
-    const reports = await Pothole.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(50)
+    const { status, severity, limit: limitParam, page: pageParam, mine } = req.query
+    if (status !== undefined && !['reported', 'fixed'].includes(status)) {
+      return res.status(400).json({ message: 'Status must be either "reported" or "fixed".' })
+    }
+    if (severity !== undefined) {
+      const minimumSeverity = Number(severity)
+      if (!Number.isInteger(minimumSeverity) || minimumSeverity < 1 || minimumSeverity > 5) {
+        return res.status(400).json({ message: 'Minimum severity must be a whole number from 1 to 5.' })
+      }
+    }
+    if (mine !== undefined && mine !== 'true' && mine !== 'false') {
+      return res.status(400).json({ message: 'The mine filter must be "true" or "false".' })
+    }
+    const limit = limitParam === undefined ? 100 : Number(limitParam)
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+      return res.status(400).json({ message: 'Limit must be a whole number from 1 to 200.' })
+    }
+    const page = pageParam === undefined ? 1 : Number(pageParam)
+    if (!Number.isInteger(page) || page < 1) {
+      return res.status(400).json({ message: 'Page must be a positive whole number.' })
+    }
+    if (mine === 'true' && !req.user) {
+      return res.status(401).json({ message: 'Sign in to view your reports.' })
+    }
+
+    const filter = {}
+    if (mine === 'true') filter.reportedBy = req.user._id
+    if (status) filter.status = status
+    if (severity !== undefined) filter['ai.severity'] = { $gte: Number(severity) }
+
+    const [reports, total] = await Promise.all([
+      Pothole.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate('reportedBy', 'name')
+        .lean(),
+      Pothole.countDocuments(filter),
+    ])
+
+    return res.json({
+      reports: reports.map((report) => serializeReport(req, report)),
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      },
+    })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+export async function nearbyReports(req, res, next) {
+  try {
+    const { lat: latValue, lng: lngValue, radius: radiusValue } = req.query
+    const lat = Number(latValue)
+    const lng = Number(lngValue)
+    const radius = radiusValue === undefined ? 500 : Number(radiusValue)
+
+    if (
+      typeof latValue !== 'string' ||
+      !latValue.trim() ||
+      !Number.isFinite(lat) ||
+      lat < -90 ||
+      lat > 90
+    ) {
+      return res.status(400).json({ message: 'Latitude is required and must be between -90 and 90.' })
+    }
+    if (
+      typeof lngValue !== 'string' ||
+      !lngValue.trim() ||
+      !Number.isFinite(lng) ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      return res.status(400).json({ message: 'Longitude is required and must be between -180 and 180.' })
+    }
+    if (!Number.isInteger(radius) || radius < 1 || radius > 5000) {
+      return res.status(400).json({ message: 'Radius must be a whole number from 1 to 5000 meters.' })
+    }
+
+    const reports = await Pothole.find({
+      location: {
+        $near: {
+          $geometry: { type: 'Point', coordinates: [lng, lat] },
+          $maxDistance: radius,
+        },
+      },
+    })
+      .limit(200)
       .populate('reportedBy', 'name')
       .lean()
 
     return res.json({
-      reports: reports.map((report) => ({
-        ...report,
-        id: report._id.toString(),
-        reportedBy: report.reportedBy
-          ? { id: report.reportedBy._id.toString(), name: report.reportedBy.name }
-          : null,
-      })),
+      reports: reports.map((report) => serializeReport(req, report)),
+      count: reports.length,
+      radius,
     })
   } catch (error) {
     return next(error)
@@ -172,15 +279,7 @@ export async function getReport(req, res, next) {
       .lean()
     if (!report) return res.status(404).json({ message: 'Pothole report not found.' })
 
-    return res.json({
-      report: {
-        ...report,
-        id: report._id.toString(),
-        reportedBy: report.reportedBy
-          ? { id: report.reportedBy._id.toString(), name: report.reportedBy.name }
-          : null,
-      },
-    })
+    return res.json({ report: serializeReport(req, report) })
   } catch (error) {
     if (error.name === 'CastError') {
       return res.status(400).json({ message: 'Pothole report id is invalid.' })
