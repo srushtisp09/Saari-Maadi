@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import Pothole from '../models/Pothole.js'
 import User from '../models/User.js'
-import { assessPothole } from '../config/gemini.js'
+import { assessPothole, getGeminiErrorDetails } from '../config/gemini.js'
 import { getPhotoStorageInfo } from '../middleware/upload.js'
 
 function publicReport(report) {
@@ -113,11 +113,10 @@ export async function createReport(req, res, next) {
         reason: '',
       }
       aiSkippedMessage = 'AI check was skipped; your report was saved and will not be lost.'
-      const apiKey = process.env.GEMINI_API_KEY?.trim()
-      const safeMessage = apiKey
-        ? error.message.replaceAll(apiKey, '[REDACTED]')
-        : error.message
-      console.error(`Gemini check skipped: ${safeMessage}`)
+      const { status, message } = getGeminiErrorDetails(error)
+      console.error(
+        `Gemini check skipped (status=${status ?? 'unavailable'}): ${message}`,
+      )
     }
 
     if (ai.checked && !ai.isPothole) {

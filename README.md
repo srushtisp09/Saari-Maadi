@@ -17,6 +17,8 @@ The server reads configuration from `server/.env`. The current development confi
 
 Set `GEMINI_API_KEY` in `server/.env` to enable image assessment. The default `GEMINI_MODEL` is `gemini-3.5-flash-lite`, Google's stable, low-cost multimodal model with image input and a standard free tier ([model details](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite), [pricing](https://ai.google.dev/gemini-api/docs/pricing)). Free-tier quotas and availability can change. Photos that Gemini confirms as potholes earn the reporter 10 points. If Gemini is unavailable, the report is still saved for later review.
 
+Run `npm --prefix server run test:gemini` to send the included test photo to Gemini and print its parsed assessment. The API server logs Gemini's HTTP status and error message if an assessment fails; the API key is redacted.
+
 Uploaded images are limited to JPEG, PNG, or WebP and 5 MB, and are stored in the ignored `server/uploads/` directory.
 
 ## Map demo data

@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../config/loadEnv.js'
 import dns from 'node:dns'
 import { unlink } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'

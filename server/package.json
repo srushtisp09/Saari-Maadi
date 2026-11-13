@@ -7,7 +7,8 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "seed": "node scripts/seed.js",
-    "unseed": "node scripts/unseed.js"
+    "unseed": "node scripts/unseed.js",
+    "test:gemini": "node scripts/testGemini.js"
   },
   "keywords": [],
   "author": "",

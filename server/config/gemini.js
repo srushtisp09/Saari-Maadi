@@ -99,3 +99,12 @@ export async function assessPothole(file) {
 
   return validateAssessment(JSON.parse(stripMarkdownFences(text)))
 }
+
+export function getGeminiErrorDetails(error) {
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
+  const rawMessage = error instanceof Error ? error.message : String(error)
+  const message = apiKey ? rawMessage.split(apiKey).join('[REDACTED]') : rawMessage
+  const status = Number.isInteger(error?.status) ? error.status : null
+
+  return { status, message }
+}
