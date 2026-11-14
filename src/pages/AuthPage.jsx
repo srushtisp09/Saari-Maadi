@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { useToast } from '../toast/useToast.js'
 
 const copy = {
   en: {
@@ -50,6 +51,7 @@ export default function AuthPage({ mode }) {
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { user, login, register } = useAuth()
+  const showToast = useToast()
   const navigate = useNavigate()
   const location = useLocation()
   const text = copy[language]
@@ -65,10 +67,13 @@ export default function AuthPage({ mode }) {
       await (isRegister
         ? register({ name, email, password })
         : login({ email, password }))
+      showToast(isRegister ? 'Your account is ready. Welcome to Sari Maadi!' : 'You are signed in.')
       const destination = location.state?.from?.pathname || '/home'
       navigate(destination, { replace: true })
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : text.genericError)
+      const message = error instanceof Error ? error.message : text.genericError
+      setErrorMessage(message)
+      showToast(message, 'error')
     } finally {
       setIsSubmitting(false)
     }

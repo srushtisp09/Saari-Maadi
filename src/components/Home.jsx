@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import Accountability from './Accountability.jsx'
 import RecentReports from './RecentReports.jsx'
+import NotificationBell from './NotificationBell.jsx'
 
 export default function Home() {
   const { user, logout } = useAuth()
@@ -21,8 +23,14 @@ export default function Home() {
         </Link>
         <nav aria-label="Main navigation">
           <Link to="/map">Map</Link>
+          <Link to="/leaderboard">Leaderboard</Link>
+          <Link to="/city-report">City report</Link>
           {user && <Link to="/report">Report a pothole</Link>}
+          {user && <Link to="/profile">My profile</Link>}
+          {['authority', 'admin'].includes(user?.role) && <Link to="/authority">Authority</Link>}
+          {['authority', 'admin'].includes(user?.role) && <Link to="/analytics">Analytics</Link>}
         </nav>
+        {user && <NotificationBell />}
       </header>
 
       <div className="home-content relative z-10 mx-auto w-full max-w-3xl text-center">
@@ -74,6 +82,7 @@ export default function Home() {
         </div>
       </div>
       <div className="relative z-10 mt-20 w-full px-1">
+        <Accountability />
         <RecentReports />
       </div>
       <span className="sr-only">Sari Maadi, the Bengaluru pothole tracker.</span>

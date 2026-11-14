@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { useToast } from '../toast/useToast.js'
 
 const labels = {
   en: {
@@ -34,6 +35,15 @@ const labels = {
     successTitle: 'Thanks for helping Bengaluru!',
     aiSkipped: 'Your report is saved. The AI check was unavailable this time.',
     switchLanguage: 'ಕನ್ನಡ',
+    duplicateTitle: 'A pothole is already reported nearby',
+    duplicateDetails: 'It may be the same road damage. You can support the existing report or submit this as a different pothole.',
+    samePothole: 'Same pothole, upvote it',
+    differentPothole: 'No, this is a different one',
+    upvotedDuplicate: 'Thanks! Your upvote was added.',
+    openFor: 'Open for',
+    day: 'day',
+    days: 'days',
+    upvotes: 'upvotes',
   },
   kn: {
     eyebrow: 'ಬೆಂಗಳೂರು ರಸ್ತೆಗಳ ಪ್ರಯಾಣ ಸುಗಮವಾಗಲಿ',
@@ -66,6 +76,15 @@ const labels = {
     successTitle: 'ಬೆಂಗಳೂರಿಗೆ ಸಹಾಯ ಮಾಡಿದ್ದಕ್ಕೆ ಧನ್ಯವಾದಗಳು!',
     aiSkipped: 'ವರದಿ ಉಳಿಸಲಾಗಿದೆ. ಈ ಬಾರಿ AI ಪರಿಶೀಲನೆ ಲಭ್ಯವಿರಲಿಲ್ಲ.',
     switchLanguage: 'English',
+    duplicateTitle: 'ಹತ್ತಿರದಲ್ಲೇ ಗುಂಡಿ ವರದಿಯಾಗಿದೆ',
+    duplicateDetails: 'ಇದು ಅದೇ ರಸ್ತೆ ಹಾನಿಯಾಗಿರಬಹುದು. ಈಗಿರುವ ವರದಿಗೆ ಮತ ನೀಡಿ ಅಥವಾ ಬೇರೆ ಗುಂಡಿಯಾಗಿ ಸಲ್ಲಿಸಿ.',
+    samePothole: 'ಅದೇ ಗುಂಡಿ, ಮತ ನೀಡಿ',
+    differentPothole: 'ಇಲ್ಲ, ಇದು ಬೇರೆ ಗುಂಡಿ',
+    upvotedDuplicate: 'ಧನ್ಯವಾದಗಳು! ನಿಮ್ಮ ಮತ ಸೇರಿಸಲಾಗಿದೆ.',
+    openFor: 'ತೆರೆದಿದ್ದು',
+    day: 'ದಿನ',
+    days: 'ದಿನಗಳು',
+    upvotes: 'ಮತಗಳು',
   },
 }
 
@@ -82,8 +101,12 @@ export default function ReportPothole() {
   const [message, setMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [result, setResult] = useState(null)
+  const [duplicate, setDuplicate] = useState(null)
+  const [duplicateMessage, setDuplicateMessage] = useState('')
+  const [duplicateBusy, setDuplicateBusy] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { token } = useAuth()
+  const showToast = useToast()
   const navigate = useNavigate()
   const text = labels[language]
   const previewUrl = useMemo(
@@ -125,11 +148,13 @@ export default function ReportPothole() {
     )
   }
 
-  async function submitReport(event) {
-    event.preventDefault()
+  async function submitReport(event, forceNew = false) {
+    event?.preventDefault()
     setErrorMessage('')
     setMessage('')
     setResult(null)
+    setDuplicate(null)
+    setDuplicateMessage('')
     if (!photo) {
       setErrorMessage(text.photoRequired)
       return
@@ -144,6 +169,7 @@ export default function ReportPothole() {
     formData.append('lat', String(location.lat))
     formData.append('lng', String(location.lng))
     formData.append('description', description)
+    if (forceNew) formData.append('forceNew', 'true')
 
     setIsSubmitting(true)
     try {
@@ -153,6 +179,10 @@ export default function ReportPothole() {
         body: formData,
       })
       const data = await response.json().catch(() => ({}))
+      if (response.status === 409 && data.existingPothole) {
+        setDuplicate(data.existingPothole)
+        return
+      }
       if (!response.ok) {
         setResult(data.ai ? { rejected: true, ai: data.ai } : null)
         const notPotholeMessage = data.ai?.checked && !data.ai.isPothole
@@ -163,12 +193,41 @@ export default function ReportPothole() {
 
       setResult(data)
       setMessage(data.message || text.success)
+      showToast(data.message || text.success)
       setPhoto(null)
       setDescription('')
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : text.notPothole)
+      const errorText = error instanceof Error ? error.message : text.notPothole
+      setErrorMessage(errorText)
+      showToast(errorText, 'error')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function upvoteDuplicate() {
+    if (!duplicate) return
+    setDuplicateBusy(true)
+    setErrorMessage('')
+    try {
+      const response = await fetch(`/api/potholes/${duplicate.id}/upvote`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.message || text.duplicateDetails)
+      setDuplicate((current) => ({
+        ...current,
+        upvoteCount: data.report.upvoteCount,
+        hasUpvoted: true,
+      }))
+      setDuplicateMessage(text.upvotedDuplicate)
+      showToast(text.upvotedDuplicate)
+    } catch (error) {
+      setErrorMessage(error.message || text.duplicateDetails)
+      showToast(error.message || text.duplicateDetails, 'error')
+    } finally {
+      setDuplicateBusy(false)
     }
   }
 
@@ -261,6 +320,44 @@ export default function ReportPothole() {
           </label>
 
           {errorMessage && <p className="auth-error" role="alert">{errorMessage}</p>}
+
+          {duplicate && (
+            <section className="duplicate-report-card" aria-live="polite">
+              <img src={duplicate.photoUrl} alt={text.duplicateTitle} />
+              <div>
+                <h2 className="font-baloo">{text.duplicateTitle}</h2>
+                <p>{text.duplicateDetails}</p>
+                <div className="duplicate-report-facts">
+                  {duplicate.severity && <span>{text.severity}: {duplicate.severity}/5</span>}
+                  <span>{duplicate.upvoteCount} {text.upvotes}</span>
+                  {duplicate.daysOpen !== null && (
+                    <span className={`open-days-badge${duplicate.daysOpen >= 14 ? ' is-overdue' : ''}`}>
+                      {text.openFor} {duplicate.daysOpen} {duplicate.daysOpen === 1 ? text.day : text.days}
+                    </span>
+                  )}
+                </div>
+                <div className="duplicate-report-actions">
+                  <button
+                    type="button"
+                    className="auth-submit"
+                    onClick={upvoteDuplicate}
+                    disabled={duplicateBusy || duplicate.hasUpvoted}
+                  >
+                    {duplicateBusy ? text.submitting : duplicate.hasUpvoted ? text.upvotedDuplicate : text.samePothole}
+                  </button>
+                  <button
+                    type="button"
+                    className="report-another"
+                    onClick={() => submitReport(null, true)}
+                    disabled={isSubmitting}
+                  >
+                    {text.differentPothole}
+                  </button>
+                </div>
+                {duplicateMessage && <p className="report-notice" role="status">{duplicateMessage}</p>}
+              </div>
+            </section>
+          )}
 
           {message && result && !result.report?.ai?.checked && (
             <p className="report-notice" role="status">{text.aiSkipped}</p>

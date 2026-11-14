@@ -9,6 +9,7 @@
     "dev:client": "vite --host 127.0.0.1",
     "seed": "npm --prefix server run seed",
     "unseed": "npm --prefix server run unseed",
+    "test": "npm --prefix server test",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"

@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
+import { getBadgeDetails } from '../config/badges.js'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -14,6 +15,7 @@ function userResponse(user) {
     email: user.email,
     role: user.role,
     points: user.points,
+    badges: getBadgeDetails(user.badges || []),
     createdAt: user.createdAt,
   }
 }

@@ -3,6 +3,7 @@ import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import L from 'leaflet'
 import { Link } from 'react-router-dom'
+import UpvoteButton from './UpvoteButton.jsx'
 
 const BENGALURU = [12.9716, 77.5946]
 
@@ -95,7 +96,7 @@ export default function PotholeMap({
                 <div className="map-popup-content">
                   <div className="map-popup-badges">
                     <span className={`map-status-badge map-status-${report.status}`}>
-                      {report.status === 'fixed' ? labels.fixed : labels.reported}
+                      {labels[report.status] || report.status}
                     </span>
                     {report.ai?.checked ? (
                       <span className="map-severity-badge">
@@ -105,6 +106,19 @@ export default function PotholeMap({
                       <span className="map-severity-badge">{labels.noAI}</span>
                     )}
                   </div>
+                  <UpvoteButton
+                    key={report.id}
+                    report={report}
+                    labels={{
+                      upvote: labels.upvote,
+                      loginToUpvote: labels.loginToUpvote,
+                      login: labels.login,
+                      upvoteError: labels.upvoteError,
+                      openFor: labels.openFor,
+                      day: labels.day,
+                      days: labels.days,
+                    }}
+                  />
                   <time>{formatTimeAgo(report.createdAt, labels.language)}</time>
                   <Link to={`/potholes/${report.id}`}>{labels.viewDetails}</Link>
                 </div>

@@ -1,5 +1,27 @@
 import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
+import { BADGE_RULES } from '../config/badges.js'
+
+const pointsHistorySchema = new mongoose.Schema({
+  amount: {
+    type: Number,
+    required: true,
+  },
+  reason: {
+    type: String,
+    required: true,
+    maxlength: 80,
+  },
+  eventKey: {
+    type: String,
+    required: true,
+    maxlength: 160,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+}, { _id: false })
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -26,13 +48,25 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['citizen', 'admin'],
+    enum: ['citizen', 'authority', 'admin'],
     default: 'citizen',
   },
   points: {
     type: Number,
     default: 0,
     min: 0,
+  },
+  pointsHistory: {
+    type: [pointsHistorySchema],
+    default: [],
+    select: false,
+  },
+  badges: {
+    type: [{
+      type: String,
+      enum: BADGE_RULES.map((badge) => badge.key),
+    }],
+    default: [],
   },
   seeded: {
     type: Boolean,

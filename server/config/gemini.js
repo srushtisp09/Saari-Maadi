@@ -100,6 +100,78 @@ export async function assessPothole(file) {
   return validateAssessment(JSON.parse(stripMarkdownFences(text)))
 }
 
+export async function comparePotholePhotos(newPhoto, existingPhoto) {
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
+  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-3.5-flash-lite'
+
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.')
+
+  const endpoint = new URL(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+  )
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          {
+            text: 'Compare these two photos of road potholes. Decide whether they depict the same physical pothole, not merely similar potholes. Return ONLY JSON: {"samePothole": boolean, "confidence": number from 0 to 1}.',
+          },
+          {
+            inline_data: {
+              mime_type: newPhoto.mimetype,
+              data: newPhoto.buffer.toString('base64'),
+            },
+          },
+          {
+            inline_data: {
+              mime_type: existingPhoto.mimetype,
+              data: existingPhoto.buffer.toString('base64'),
+            },
+          },
+        ],
+      }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.1,
+        maxOutputTokens: 100,
+      },
+    }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+
+  const result = await response.json().catch(() => null)
+  if (!response.ok) {
+    const apiMessage = typeof result?.error?.message === 'string'
+      ? result.error.message
+      : 'Gemini returned an unspecified API error.'
+    const error = new Error(`Gemini API request failed (${response.status}): ${apiMessage}`)
+    error.status = response.status
+    throw error
+  }
+
+  const text = result?.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text ?? '')
+    .join('')
+  if (!text) throw new Error('Gemini returned no duplicate comparison result.')
+  const comparison = JSON.parse(stripMarkdownFences(text))
+  if (
+    typeof comparison?.samePothole !== 'boolean' ||
+    typeof comparison?.confidence !== 'number' ||
+    !Number.isFinite(comparison.confidence) ||
+    comparison.confidence < 0 ||
+    comparison.confidence > 1
+  ) {
+    throw new Error('Gemini returned a duplicate comparison with an invalid JSON schema.')
+  }
+
+  return comparison
+}
+
 export function getGeminiErrorDetails(error) {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   const rawMessage = error instanceof Error ? error.message : String(error)

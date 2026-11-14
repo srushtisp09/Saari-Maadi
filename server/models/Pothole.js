@@ -44,8 +44,56 @@ const potholeSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['reported', 'fixed'],
+    enum: ['reported', 'verified', 'in_progress', 'fixed', 'rejected'],
     default: 'reported',
+  },
+  statusHistory: [{
+    from: {
+      type: String,
+      enum: ['reported', 'verified', 'in_progress', 'fixed', 'rejected'],
+      required: true,
+    },
+    to: {
+      type: String,
+      enum: ['reported', 'verified', 'in_progress', 'fixed', 'rejected'],
+      required: true,
+    },
+    changedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    note: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: '',
+    },
+    at: {
+      type: Date,
+      default: Date.now,
+    },
+  }],
+  fixedAt: {
+    type: Date,
+    default: null,
+  },
+  afterPhotoUrl: {
+    type: String,
+    trim: true,
+  },
+  fixBonusAwarded: {
+    type: Boolean,
+    default: false,
+  },
+  upvotes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  }],
+  upvoteCount: {
+    type: Number,
+    default: 0,
+    min: 0,
   },
   seeded: {
     type: Boolean,

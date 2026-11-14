@@ -5,6 +5,9 @@ import path from 'node:path'
 import authRoutes from './routes/auth.js'
 import healthRoute from './routes/health.js'
 import potholeRoutes from './routes/potholes.js'
+import statsRoute from './routes/stats.js'
+import notificationRoutes from './routes/notifications.js'
+import insightsRoutes from './routes/insights.js'
 
 const app = express()
 const uploadsDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'uploads')
@@ -13,6 +16,9 @@ app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173' }))
 app.use(express.json({ limit: '10kb' }))
 app.use('/uploads', express.static(uploadsDirectory, { fallthrough: false }))
 app.use('/api/health', healthRoute)
+app.use('/api/stats', statsRoute)
+app.use('/api/notifications', notificationRoutes)
+app.use('/api', insightsRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/potholes', potholeRoutes)
 

@@ -2,14 +2,16 @@ import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
 
 export async function optionalAuth(req, res, next) {
-  if (req.query.mine !== 'true') return next()
-
   const authorization = req.get('authorization')
-  const token = authorization?.startsWith('Bearer ')
-    ? authorization.slice(7).trim()
-    : ''
+  if (!authorization && req.query.mine !== 'true') return next()
+
+  const token = authorization?.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
   if (!token) {
-    return res.status(401).json({ message: 'Sign in to view your reports.' })
+    return res.status(401).json({
+      message: req.query.mine === 'true'
+        ? 'Sign in to view your reports.'
+        : 'A valid Bearer token is required.',
+    })
   }
 
   try {

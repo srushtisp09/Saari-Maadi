@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import PotholeMap from '../components/PotholeMap.jsx'
+import NotificationBell from '../components/NotificationBell.jsx'
 
 const BENGALURU = [12.9716, 77.5946]
 
@@ -16,6 +17,9 @@ const labels = {
     all: 'All statuses',
     reported: 'Reported',
     fixed: 'Fixed',
+    verified: 'Verified',
+    in_progress: 'In progress',
+    rejected: 'Rejected',
     minSeverity: 'Minimum severity',
     anySeverity: 'Any severity',
     locate: 'Locate me',
@@ -29,6 +33,13 @@ const labels = {
     viewDetails: 'View details',
     severity: 'Severity',
     noAI: 'AI not checked',
+    upvote: 'Upvote',
+    loginToUpvote: 'Log in to support this report.',
+    login: 'Log in',
+    upvoteError: 'Could not update your upvote.',
+    openFor: 'Open for',
+    day: 'day',
+    days: 'days',
     language: 'en',
   },
   kn: {
@@ -41,6 +52,9 @@ const labels = {
     all: 'ಎಲ್ಲಾ ಸ್ಥಿತಿಗಳು',
     reported: 'ವರದಿಯಾಗಿದೆ',
     fixed: 'ಸರಿಪಡಿಸಲಾಗಿದೆ',
+    verified: 'ಪರಿಶೀಲಿಸಲಾಗಿದೆ',
+    in_progress: 'ಕೆಲಸ ನಡೆಯುತ್ತಿದೆ',
+    rejected: 'ತಿರಸ್ಕರಿಸಲಾಗಿದೆ',
     minSeverity: 'ಕನಿಷ್ಠ ತೀವ್ರತೆ',
     anySeverity: 'ಯಾವುದೇ ತೀವ್ರತೆ',
     locate: 'ನನ್ನ ಸ್ಥಳ',
@@ -54,6 +68,13 @@ const labels = {
     viewDetails: 'ವಿವರ ನೋಡಿ',
     severity: 'ತೀವ್ರತೆ',
     noAI: 'AI ಪರಿಶೀಲನೆ ಆಗಿಲ್ಲ',
+    upvote: 'ಮತ ನೀಡಿ',
+    loginToUpvote: 'ವರದಿಯನ್ನು ಬೆಂಬಲಿಸಲು ಲಾಗಿನ್ ಮಾಡಿ.',
+    login: 'ಲಾಗಿನ್',
+    upvoteError: 'ಮತವನ್ನು ನವೀಕರಿಸಲಾಗಲಿಲ್ಲ.',
+    openFor: 'ತೆರೆದಿದ್ದು',
+    day: 'ದಿನ',
+    days: 'ದಿನಗಳು',
     language: 'kn',
   },
 }
@@ -75,7 +96,7 @@ export default function MapPage() {
   const [locateMessage, setLocateMessage] = useState('')
   const [myCenter, setMyCenter] = useState(null)
   const [searchParams] = useSearchParams()
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const text = labels[language]
   const focusLat = searchParams.get('lat')
   const focusLng = searchParams.get('lng')
@@ -97,14 +118,18 @@ export default function MapPage() {
 
     async function loadReports() {
       try {
-        const response = await fetch(`/api/potholes?${params}`, { signal: controller.signal })
+        const requestOptions = {
+          signal: controller.signal,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+        const response = await fetch(`/api/potholes?${params}`, requestOptions)
         const data = await response.json()
         if (!response.ok) throw new Error(data.message || labels.en.loadError)
         const allReports = [...data.reports]
         for (let page = 2; page <= data.pagination.pages; page += 1) {
           const pageParams = new URLSearchParams(params)
           pageParams.set('page', String(page))
-          const pageResponse = await fetch(`/api/potholes?${pageParams}`, { signal: controller.signal })
+          const pageResponse = await fetch(`/api/potholes?${pageParams}`, requestOptions)
           const pageData = await pageResponse.json()
           if (!pageResponse.ok) throw new Error(pageData.message || labels.en.loadError)
           allReports.push(...pageData.reports)
@@ -123,7 +148,7 @@ export default function MapPage() {
 
     void loadReports()
     return () => controller.abort()
-  }, [minimumSeverity, status])
+  }, [minimumSeverity, status, token])
 
   function locateMe() {
     setLocateMessage('')
@@ -160,7 +185,9 @@ export default function MapPage() {
         <nav className="map-nav-links" aria-label="Main navigation">
           <Link to="/home">{text.home}</Link>
           {user && <Link to="/report">{text.report}</Link>}
+          {['authority', 'admin'].includes(user?.role) && <Link to="/authority">Authority</Link>}
         </nav>
+        {user && <NotificationBell />}
         <button
           type="button"
           className="language-button is-selected map-language-toggle"
@@ -188,7 +215,10 @@ export default function MapPage() {
             >
               <option value="">{text.all}</option>
               <option value="reported">{text.reported}</option>
+              <option value="verified">{text.verified}</option>
+              <option value="in_progress">{text.in_progress}</option>
               <option value="fixed">{text.fixed}</option>
+              <option value="rejected">{text.rejected}</option>
             </select>
           </label>
           <label>

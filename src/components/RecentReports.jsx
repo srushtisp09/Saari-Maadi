@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../auth/useAuth.js'
+import UpvoteButton from './UpvoteButton.jsx'
+import PageSkeleton from './PageSkeleton.jsx'
 
 function formatReportTime(value) {
   return new Intl.DateTimeFormat(undefined, {
@@ -10,22 +14,46 @@ function formatReportTime(value) {
 export default function RecentReports() {
   const [reports, setReports] = useState([])
   const [errorMessage, setErrorMessage] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [sort, setSort] = useState('newest')
+  const { token } = useAuth()
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch('/api/potholes', { signal: controller.signal })
-      .then(async (response) => {
+    const params = new URLSearchParams({ limit: '100' })
+    if (sort === 'priority') params.set('sort', 'priority')
+    async function loadReports() {
+      try {
+        const response = await fetch(`/api/potholes?${params}`, {
+          signal: controller.signal,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
         const data = await response.json()
         if (!response.ok) throw new Error(data.message || 'Could not load reports.')
-        return data.reports
-      })
-      .then(setReports)
-      .catch((error) => {
-        if (error.name !== 'AbortError') setErrorMessage(error.message)
-      })
+        if (!controller.signal.aborted) {
+          setReports(data.reports)
+          setErrorMessage('')
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) setErrorMessage(error.message)
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }
 
+    void loadReports()
     return () => controller.abort()
-  }, [])
+  }, [sort, token])
+
+  const upvoteLabels = {
+    upvote: 'Upvote',
+    loginToUpvote: 'Log in to support this report.',
+    login: 'Log in',
+    upvoteError: 'Could not update your upvote.',
+    openFor: 'Open for',
+    day: 'day',
+    days: 'days',
+  }
 
   return (
     <section className="recent-reports mx-auto mt-16 w-full max-w-5xl text-left">
@@ -38,6 +66,16 @@ export default function RecentReports() {
             Recent reports
           </h2>
         </div>
+        <label className="recent-sort-label">
+          <span>Sort reports</span>
+          <select value={sort} onChange={(event) => {
+            setLoading(true)
+            setSort(event.target.value)
+          }}>
+            <option value="newest">Newest</option>
+            <option value="priority">Most urgent</option>
+          </select>
+        </label>
       </div>
 
       {errorMessage && (
@@ -45,20 +83,23 @@ export default function RecentReports() {
           {errorMessage}
         </p>
       )}
-      {!errorMessage && reports.length === 0 && (
+      {loading && <PageSkeleton cards={3} />}
+      {!loading && !errorMessage && reports.length === 0 && (
         <p className="rounded-2xl border border-[#1b5e3a]/10 bg-white/70 p-5 text-[#625d4f]">
           No reports yet. Be the first to help fix a Bengaluru road.
         </p>
       )}
-      {reports.length > 0 && (
+      {!loading && reports.length > 0 && (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {reports.slice(0, 6).map((report) => (
             <li className="recent-report-card" key={report.id}>
-              <img
-                src={report.photoUrl}
-                alt={report.description || 'Reported pothole'}
-                loading="lazy"
-              />
+              <Link to={`/potholes/${report.id}`} className="recent-report-image-link">
+                <img
+                  src={report.photoUrl}
+                  alt={report.description || 'Reported pothole'}
+                  loading="lazy"
+                />
+              </Link>
               <div className="p-4">
                 <div className="flex flex-wrap gap-2">
                   {report.ai?.checked && (
@@ -67,7 +108,13 @@ export default function RecentReports() {
                     </span>
                   )}
                   <span className="result-chip result-chip-status">
-                    {report.status === 'fixed' ? 'Fixed' : 'Reported'}
+                    {{
+                      reported: 'Reported',
+                      verified: 'Verified',
+                      in_progress: 'In progress',
+                      fixed: 'Fixed',
+                      rejected: 'Rejected',
+                    }[report.status] || report.status}
                   </span>
                 </div>
                 <p className="mt-3 line-clamp-2 min-h-10 text-sm text-[#494638]">
@@ -79,6 +126,10 @@ export default function RecentReports() {
                 >
                   {formatReportTime(report.createdAt)}
                 </time>
+                <UpvoteButton report={report} labels={upvoteLabels} />
+                <Link className="recent-detail-link" to={`/potholes/${report.id}`}>
+                  View details →
+                </Link>
               </div>
             </li>
           ))}

@@ -1,0 +1,1 @@
+export const FIXED_REPORTER_BONUS_POINTS = 20

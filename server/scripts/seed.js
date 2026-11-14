@@ -12,6 +12,20 @@ import User from '../models/User.js'
 dns.setServers(['8.8.8.8', '1.1.1.1'])
 
 const seedEmail = 'map-demo@sari-maadi.invalid'
+const demoAccounts = [
+  {
+    name: 'Sari Maadi Demo Authority',
+    email: 'authority-demo@sari-maadi.invalid',
+    password: 'AuthorityDemo-2026!',
+    role: 'authority',
+  },
+  {
+    name: 'Sari Maadi Demo Admin',
+    email: 'admin-demo@sari-maadi.invalid',
+    password: 'AdminDemo-2026!',
+    role: 'admin',
+  },
+]
 const uploadsDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../uploads')
 const seedPhotoName = 'seeded-pothole.svg'
 const seedPhotoPath = path.join(uploadsDirectory, seedPhotoName)
@@ -27,6 +41,22 @@ const locations = [
 
 async function seed() {
   await connectDatabase()
+  if (process.env.NODE_ENV !== 'production') {
+    for (const account of demoAccounts) {
+      let user = await User.findOne({ email: account.email })
+      if (!user) user = new User({ email: account.email })
+      user.name = account.name
+      user.password = account.password
+      user.role = account.role
+      user.seeded = true
+      await user.save()
+    }
+    console.info('Development demo accounts (reset by running the seed command):')
+    for (const account of demoAccounts) {
+      console.info(`  ${account.role}: ${account.email} / ${account.password}`)
+    }
+  }
+
   let user = await User.findOne({ email: seedEmail })
   if (!user) {
     user = await User.create({
