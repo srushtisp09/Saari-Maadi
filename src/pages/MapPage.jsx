@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { apiFetch } from '../auth/api.js'
 import PotholeMap from '../components/PotholeMap.jsx'
 import NotificationBell from '../components/NotificationBell.jsx'
 
@@ -27,6 +28,9 @@ const labels = {
     locateDenied: 'Location permission was denied. Allow location access in your browser settings to locate yourself.',
     locateUnavailable: 'Could not get your location. Check your device settings and try again.',
     count: 'potholes shown',
+    previous: 'Previous page',
+    next: 'Next page',
+    page: 'Page',
     loading: 'Loading reports…',
     empty: 'No potholes match these filters.',
     loadError: 'Could not load pothole reports. Please try again.',
@@ -62,6 +66,9 @@ const labels = {
     locateDenied: 'ಸ್ಥಳ ಅನುಮತಿ ನಿರಾಕರಿಸಲಾಗಿದೆ. ಬ್ರೌಸರ್ ಸೆಟ್ಟಿಂಗ್‌ಗಳಲ್ಲಿ ಸ್ಥಳ ಪ್ರವೇಶ ಅನುಮತಿಸಿ.',
     locateUnavailable: 'ನಿಮ್ಮ ಸ್ಥಳ ಪಡೆಯಲಾಗಲಿಲ್ಲ. ಸಾಧನದ ಸೆಟ್ಟಿಂಗ್ ಪರಿಶೀಲಿಸಿ.',
     count: 'ಗುಂಡಿಗಳು ಕಾಣಿಸುತ್ತಿವೆ',
+    previous: 'ಹಿಂದಿನ ಪುಟ',
+    next: 'ಮುಂದಿನ ಪುಟ',
+    page: 'ಪುಟ',
     loading: 'ವರದಿಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗುತ್ತಿದೆ…',
     empty: 'ಈ ಫಿಲ್ಟರ್‌ಗಳಿಗೆ ಹೊಂದುವ ಗುಂಡಿಗಳಿಲ್ಲ.',
     loadError: 'ವರದಿಗಳನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
@@ -90,6 +97,8 @@ export default function MapPage() {
   const [status, setStatus] = useState('')
   const [minimumSeverity, setMinimumSeverity] = useState('')
   const [reports, setReports] = useState([])
+  const [pagination, setPagination] = useState(null)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [locating, setLocating] = useState(false)
@@ -112,7 +121,7 @@ export default function MapPage() {
 
   useEffect(() => {
     const controller = new AbortController()
-    const params = new URLSearchParams({ limit: '200' })
+    const params = new URLSearchParams({ limit: '100', page: String(page) })
     if (status) params.set('status', status)
     if (minimumSeverity) params.set('severity', minimumSeverity)
 
@@ -122,21 +131,13 @@ export default function MapPage() {
           signal: controller.signal,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
-        const response = await fetch(`/api/potholes?${params}`, requestOptions)
+        const response = await apiFetch(`/api/potholes?${params}`, requestOptions)
         const data = await response.json()
         if (!response.ok) throw new Error(data.message || labels.en.loadError)
-        const allReports = [...data.reports]
-        for (let page = 2; page <= data.pagination.pages; page += 1) {
-          const pageParams = new URLSearchParams(params)
-          pageParams.set('page', String(page))
-          const pageResponse = await fetch(`/api/potholes?${pageParams}`, requestOptions)
-          const pageData = await pageResponse.json()
-          if (!pageResponse.ok) throw new Error(pageData.message || labels.en.loadError)
-          allReports.push(...pageData.reports)
-        }
         if (controller.signal.aborted) return
         setErrorMessage('')
-        setReports(allReports)
+        setReports(data.reports)
+        setPagination(data.pagination)
       } catch (error) {
         if (!controller.signal.aborted) {
           setErrorMessage(error.message || labels.en.loadError)
@@ -148,7 +149,7 @@ export default function MapPage() {
 
     void loadReports()
     return () => controller.abort()
-  }, [minimumSeverity, status, token])
+  }, [minimumSeverity, page, status, token])
 
   function locateMe() {
     setLocateMessage('')
@@ -210,6 +211,7 @@ export default function MapPage() {
               onChange={(event) => {
                 setLoading(true)
                 setErrorMessage('')
+                setPage(1)
                 setStatus(event.target.value)
               }}
             >
@@ -228,6 +230,7 @@ export default function MapPage() {
               onChange={(event) => {
                 setLoading(true)
                 setErrorMessage('')
+                setPage(1)
                 setMinimumSeverity(event.target.value)
               }}
             >
@@ -243,7 +246,9 @@ export default function MapPage() {
         </div>
         <div className="map-status-row">
           <strong aria-live="polite">
-            {loading ? text.loading : `${reports.length} ${text.count}`}
+            {loading
+              ? text.loading
+              : `${reports.length} of ${pagination?.total ?? reports.length} ${text.count}`}
           </strong>
           {locateMessage && <span role="alert">{locateMessage}</span>}
           {errorMessage && <span role="alert">{errorMessage}</span>}
@@ -262,6 +267,21 @@ export default function MapPage() {
           labels={text}
         />
       </section>
+      {pagination && pagination.pages > 1 && (
+        <nav className="map-pagination" aria-label="Map report pages">
+          <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)}>
+            {text.previous}
+          </button>
+          <span aria-live="polite">{text.page} {page} / {pagination.pages}</span>
+          <button
+            type="button"
+            disabled={!pagination.hasMore || loading}
+            onClick={() => setPage((value) => value + 1)}
+          >
+            {text.next}
+          </button>
+        </nav>
+      )}
     </main>
   )
 }

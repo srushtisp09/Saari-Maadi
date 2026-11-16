@@ -13,6 +13,11 @@ dist-ssr
 *.local
 server/.env
 server/uploads/
+server/coverage/
+server/.test-uploads/
+server/.e2e-uploads/
+playwright-report/
+test-results/
 
 # Editor directories and files
 .vscode/*
@@ -24,3 +29,9 @@ server/uploads/
 *.njsproj
 *.sln
 *.sw?
+
+server/.test-uploads/
+server/.e2e-uploads/
+
+server/.test-uploads/
+server/.e2e-uploads/

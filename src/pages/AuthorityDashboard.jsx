@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { apiFetch } from '../auth/api.js'
 import NotificationBell from '../components/NotificationBell.jsx'
 import { useToast } from '../toast/useToast.js'
 import PageSkeleton from '../components/PageSkeleton.jsx'
@@ -30,6 +31,8 @@ export default function AuthorityDashboard() {
   const [areaFilter, setAreaFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [queueRevision, setQueueRevision] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [selectedReport, setSelectedReport] = useState(null)
   const [nextStatus, setNextStatus] = useState('')
@@ -41,30 +44,23 @@ export default function AuthorityDashboard() {
     const controller = new AbortController()
     async function fetchReports() {
       try {
-        const params = new URLSearchParams({ sort: 'priority', limit: '200' })
+        const params = new URLSearchParams({
+          sort: 'priority',
+          limit: '20',
+          page: String(page),
+        })
         if (severityFilter) params.set('severity', severityFilter)
         if (areaFilter.trim()) params.set('area', areaFilter.trim())
-        const firstResponse = await fetch(`/api/potholes?${params}`, {
+        const firstResponse = await apiFetch(`/api/potholes?${params}`, {
           signal: controller.signal,
           headers: { Authorization: `Bearer ${token}` },
         })
         const firstPage = await firstResponse.json()
         if (!firstResponse.ok) throw new Error(firstPage.message || 'Could not load the authority queue.')
 
-        const allReports = [...firstPage.reports]
-        for (let page = 2; page <= firstPage.pagination.pages; page += 1) {
-          const pageParams = new URLSearchParams(params)
-          pageParams.set('page', String(page))
-          const response = await fetch(`/api/potholes?${pageParams}`, {
-            signal: controller.signal,
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          const result = await response.json()
-          if (!response.ok) throw new Error(result.message || 'Could not load the authority queue.')
-          allReports.push(...result.reports)
-        }
         if (!controller.signal.aborted) {
-          setReports(allReports)
+          setReports(firstPage.reports)
+          setPagination(firstPage.pagination)
           setErrorMessage('')
         }
       } catch (error) {
@@ -78,7 +74,7 @@ export default function AuthorityDashboard() {
 
     void fetchReports()
     return () => controller.abort()
-  }, [areaFilter, queueRevision, severityFilter, token])
+  }, [areaFilter, page, queueRevision, severityFilter, token])
 
   const visibleReports = useMemo(() => reports.filter((report) => {
     if (statusFilter === 'open') return ['reported', 'verified', 'in_progress'].includes(report.status)
@@ -99,7 +95,7 @@ export default function AuthorityDashboard() {
     setSaving(true)
     setErrorMessage('')
     try {
-      const response = await fetch(`/api/potholes/${selectedReport.id}/status`, {
+      const response = await apiFetch(`/api/potholes/${selectedReport.id}/status`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -160,6 +156,7 @@ export default function AuthorityDashboard() {
             <span>Status</span>
             <select value={statusFilter} onChange={(event) => {
               setLoading(true)
+              setPage(1)
               setStatusFilter(event.target.value)
             }}>
               <option value="open">All open statuses</option>
@@ -173,6 +170,7 @@ export default function AuthorityDashboard() {
             <span>Minimum severity</span>
             <select value={severityFilter} onChange={(event) => {
               setLoading(true)
+              setPage(1)
               setSeverityFilter(event.target.value)
             }}>
               <option value="">Any severity</option>
@@ -185,6 +183,7 @@ export default function AuthorityDashboard() {
               value={areaFilter}
               onChange={(event) => {
                 setLoading(true)
+                setPage(1)
                 setAreaFilter(event.target.value)
               }}
               placeholder="Search address or area"
@@ -237,6 +236,23 @@ export default function AuthorityDashboard() {
             </li>
           ))}
         </ul>
+        {!loading && pagination?.pages > 1 && (
+          <nav className="report-pagination" aria-label="Authority queue pages">
+            <button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>
+              Previous
+            </button>
+            <span aria-live="polite">
+              Page {page} of {pagination.pages} · {pagination.total} reports
+            </span>
+            <button
+              type="button"
+              disabled={page >= pagination.pages}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              Next
+            </button>
+          </nav>
+        )}
       </section>
 
       {selectedReport && (

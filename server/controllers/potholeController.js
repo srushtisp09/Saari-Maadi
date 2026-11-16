@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import Pothole from '../models/Pothole.js'
 import User from '../models/User.js'
 import {
@@ -18,14 +17,18 @@ import {
   comparePotholePhotos,
   getGeminiErrorDetails,
 } from '../config/gemini.js'
-import { getPhotoStorageInfo } from '../middleware/upload.js'
+import { uploadsDirectory } from '../middleware/upload.js'
+import {
+  getCloudinaryCloudName,
+  getPhotoMimeType,
+  removeStoredPhoto,
+  storePhoto,
+} from '../services/photoStorage.js'
 import { createNotification } from '../services/notifications.js'
+import { isDemoMode } from '../config/env.js'
 
-const uploadsDirectory = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../uploads',
-)
 const DAY_MS = 24 * 60 * 60 * 1000
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 const STATUS_TRANSITIONS = Object.freeze({
   reported: ['verified', 'rejected'],
   verified: ['in_progress', 'rejected'],
@@ -95,22 +98,40 @@ function serializeReport(req, report) {
   }
 }
 
-function getPhotoMimeType(photoUrl) {
-  const extension = path.extname(photoUrl).toLowerCase()
-  return new Map([
-    ['.jpg', 'image/jpeg'],
-    ['.jpeg', 'image/jpeg'],
-    ['.png', 'image/png'],
-    ['.webp', 'image/webp'],
-  ]).get(extension)
-}
-
 async function readReportPhoto(photoUrl) {
-  const pathname = new URL(photoUrl, 'http://localhost').pathname
-  if (!pathname.startsWith('/uploads/')) {
-    throw new Error('Existing report photo is not stored locally.')
+  const url = new URL(photoUrl, 'http://localhost')
+  if (url.protocol === 'https:' && url.hostname === 'res.cloudinary.com') {
+    const cloudName = getCloudinaryCloudName()
+    if (!cloudName || !url.pathname.startsWith(`/${cloudName}/image/upload/`)) {
+      throw new Error('Existing report photo is not a configured Cloudinary image.')
+    }
+    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+    if (!response.ok || !response.body) {
+      throw new Error(`Could not download existing report photo (status ${response.status}).`)
+    }
+    const chunks = []
+    let size = 0
+    const reader = response.body.getReader()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > MAX_PHOTO_BYTES) {
+        await reader.cancel()
+        throw new Error('Existing report photo exceeds the 5 MB comparison limit.')
+      }
+      chunks.push(Buffer.from(value))
+    }
+    const mimetype = response.headers.get('content-type')?.split(';')[0]
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimetype)) {
+      throw new Error('Existing report photo format is not supported.')
+    }
+    return { buffer: Buffer.concat(chunks), mimetype }
   }
-  const imagePath = path.resolve(uploadsDirectory, path.basename(pathname))
+  if (url.protocol !== 'http:' || !url.pathname.startsWith('/uploads/')) {
+    throw new Error('Existing report photo is not stored in a supported location.')
+  }
+  const imagePath = path.resolve(uploadsDirectory, path.basename(url.pathname))
   if (path.dirname(imagePath) !== uploadsDirectory) {
     throw new Error('Existing report photo path is invalid.')
   }
@@ -153,9 +174,9 @@ async function findDuplicateReport(req, file, coordinates) {
 }
 
 async function removeUploadedFile(file) {
-  if (!file?.storagePath) return
+  if (!file?.storagePath && !file?.cloudinaryPublicId) return
   try {
-    await fs.unlink(file.storagePath)
+    await removeStoredPhoto(file)
   } catch (error) {
     if (error.code !== 'ENOENT') throw error
   }
@@ -168,13 +189,9 @@ export async function createReport(req, res, next) {
       return res.status(400).json({ message: 'Choose a pothole photo to upload.' })
     }
 
-    const lat = Number(req.body?.lat)
-    const lng = Number(req.body?.lng)
+    const lat = req.body?.lat
+    const lng = req.body?.lng
     if (
-      typeof req.body?.lat !== 'string' ||
-      typeof req.body?.lng !== 'string' ||
-      !req.body.lat.trim() ||
-      !req.body.lng.trim() ||
       !Number.isFinite(lat) ||
       !Number.isFinite(lng) ||
       lat < -90 ||
@@ -269,14 +286,11 @@ export async function createReport(req, res, next) {
       })
     }
 
-    const { directory, filename } = getPhotoStorageInfo(file)
-    file.storagePath = path.join(directory, filename)
-    await fs.mkdir(directory, { recursive: true })
-    await fs.writeFile(file.storagePath, file.buffer, { flag: 'wx' })
+    const { photoUrl } = await storePhoto(file)
 
     let report = await Pothole.create({
       reportedBy: req.user._id,
-      photoUrl: `/uploads/${filename}`,
+      photoUrl,
       description: req.body.description?.trim() || undefined,
       location: { type: 'Point', coordinates: [lng, lat] },
       ai,
@@ -316,27 +330,7 @@ export async function createReport(req, res, next) {
 
 export async function listReports(req, res, next) {
   try {
-    const { status, severity, limit: limitParam, page: pageParam, mine } = req.query
-    if (status !== undefined && !REPORT_STATUSES.includes(status)) {
-      return res.status(400).json({ message: `Status must be one of: ${REPORT_STATUSES.join(', ')}.` })
-    }
-    if (severity !== undefined) {
-      const minimumSeverity = Number(severity)
-      if (!Number.isInteger(minimumSeverity) || minimumSeverity < 1 || minimumSeverity > 5) {
-        return res.status(400).json({ message: 'Minimum severity must be a whole number from 1 to 5.' })
-      }
-    }
-    if (mine !== undefined && mine !== 'true' && mine !== 'false') {
-      return res.status(400).json({ message: 'The mine filter must be "true" or "false".' })
-    }
-    const limit = limitParam === undefined ? 100 : Number(limitParam)
-    if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
-      return res.status(400).json({ message: 'Limit must be a whole number from 1 to 200.' })
-    }
-    const page = pageParam === undefined ? 1 : Number(pageParam)
-    if (!Number.isInteger(page) || page < 1) {
-      return res.status(400).json({ message: 'Page must be a positive whole number.' })
-    }
+    const { status, severity, limit, page, mine, area, sort } = req.validated.query
     if (mine === 'true' && !req.user) {
       return res.status(401).json({ message: 'Sign in to view your reports.' })
     }
@@ -344,17 +338,13 @@ export async function listReports(req, res, next) {
     const filter = {}
     if (mine === 'true') filter.reportedBy = req.user._id
     if (status) filter.status = status
-    if (severity !== undefined) filter['ai.severity'] = { $gte: Number(severity) }
-    if (typeof req.query.area === 'string' && req.query.area.trim()) {
-      const area = req.query.area.trim().slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      filter.address = { $regex: area, $options: 'i' }
+    if (severity !== undefined) filter['ai.severity'] = { $gte: severity }
+    if (area) {
+      const escapedArea = area.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      filter.address = { $regex: escapedArea, $options: 'i' }
     }
 
-    if (req.query.sort !== undefined && req.query.sort !== 'priority') {
-      return res.status(400).json({ message: 'Sort must be "priority" when provided.' })
-    }
-
-    const reportQuery = req.query.sort === 'priority'
+    const reportQuery = sort === 'priority'
       ? Pothole.aggregate([
           { $match: filter },
           {
@@ -440,32 +430,7 @@ export async function listReports(req, res, next) {
 
 export async function nearbyReports(req, res, next) {
   try {
-    const { lat: latValue, lng: lngValue, radius: radiusValue } = req.query
-    const lat = Number(latValue)
-    const lng = Number(lngValue)
-    const radius = radiusValue === undefined ? 500 : Number(radiusValue)
-
-    if (
-      typeof latValue !== 'string' ||
-      !latValue.trim() ||
-      !Number.isFinite(lat) ||
-      lat < -90 ||
-      lat > 90
-    ) {
-      return res.status(400).json({ message: 'Latitude is required and must be between -90 and 90.' })
-    }
-    if (
-      typeof lngValue !== 'string' ||
-      !lngValue.trim() ||
-      !Number.isFinite(lng) ||
-      lng < -180 ||
-      lng > 180
-    ) {
-      return res.status(400).json({ message: 'Longitude is required and must be between -180 and 180.' })
-    }
-    if (!Number.isInteger(radius) || radius < 1 || radius > 5000) {
-      return res.status(400).json({ message: 'Radius must be a whole number from 1 to 5000 meters.' })
-    }
+    const { lat, lng, radius, page, limit } = req.validated.query
 
     const reports = await Pothole.find({
       location: {
@@ -475,14 +440,29 @@ export async function nearbyReports(req, res, next) {
         },
       },
     })
-      .limit(200)
+      .skip((page - 1) * limit)
+      .limit(limit)
       .populate('reportedBy', 'name badges')
       .lean()
+    const total = await Pothole.countDocuments({
+      location: {
+        $geoWithin: {
+          $centerSphere: [[lng, lat], radius / 6_378_100],
+        },
+      },
+    })
 
     return res.json({
       reports: reports.map((report) => serializeReport(req, report)),
       count: reports.length,
       radius,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      },
     })
   } catch (error) {
     return next(error)
@@ -711,7 +691,7 @@ export async function getStats(req, res, next) {
   try {
     const now = new Date()
     const [stats] = await Pothole.aggregate([
-      { $match: { seeded: { $ne: true } } },
+      { $match: isDemoMode() ? {} : { seeded: { $ne: true } } },
       {
         $facet: {
           open: [

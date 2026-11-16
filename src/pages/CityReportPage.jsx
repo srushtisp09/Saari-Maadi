@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { apiFetch } from '../auth/api.js'
 import BadgeList from '../components/BadgeList.jsx'
 import PageSkeleton from '../components/PageSkeleton.jsx'
 import { useToast } from '../toast/useToast.js'
@@ -13,7 +14,7 @@ export default function CityReportPage() {
     const controller = new AbortController()
     async function loadReportCard() {
       try {
-        const response = await fetch('/api/city-report', { signal: controller.signal })
+        const response = await apiFetch('/api/city-report', { signal: controller.signal })
         const data = await response.json()
         if (!response.ok) throw new Error(data.message || 'Could not load the city report card.')
         if (!controller.signal.aborted) {

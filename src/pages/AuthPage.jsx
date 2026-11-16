@@ -42,6 +42,19 @@ const copy = {
   },
 }
 
+const demoAccounts = [
+  {
+    role: 'Authority',
+    email: import.meta.env.VITE_DEMO_AUTHORITY_EMAIL,
+    password: import.meta.env.VITE_DEMO_AUTHORITY_PASSWORD,
+  },
+  {
+    role: 'Citizen',
+    email: import.meta.env.VITE_DEMO_CITIZEN_EMAIL,
+    password: import.meta.env.VITE_DEMO_CITIZEN_PASSWORD,
+  },
+]
+
 export default function AuthPage({ mode }) {
   const isRegister = mode === 'register'
   const [language, setLanguage] = useState('en')
@@ -55,6 +68,9 @@ export default function AuthPage({ mode }) {
   const navigate = useNavigate()
   const location = useLocation()
   const text = copy[language]
+  const showDemoPanel = !isRegister &&
+    import.meta.env.VITE_DEMO_MODE === 'true' &&
+    demoAccounts.every((account) => account.email && account.password)
 
   if (user) return <Navigate to="/home" replace />
 
@@ -174,6 +190,34 @@ export default function AuthPage({ mode }) {
             {!isSubmitting && <span aria-hidden="true">→</span>}
           </button>
         </form>
+
+        {showDemoPanel && (
+          <aside className="mt-6 rounded-2xl border border-[#1b5e3a]/15 bg-[#fff8e7] p-4">
+            <h2 className="font-baloo text-lg font-extrabold text-[#1b5e3a]">Try the demo</h2>
+            <p className="mt-1 text-xs leading-relaxed text-[#625d4f]">
+              Demo credentials are public and reset whenever the server starts.
+            </p>
+            <div className="mt-3 space-y-3">
+              {demoAccounts.map((account) => (
+                <div key={account.role} className="rounded-xl bg-white p-3 text-sm">
+                  <p className="font-bold text-[#1b5e3a]">{account.role}</p>
+                  <p className="mt-1 break-all text-[#625d4f]">Email: {account.email}</p>
+                  <p className="break-all text-[#625d4f]">Password: {account.password}</p>
+                  <button
+                    type="button"
+                    className="mt-2 text-sm font-bold text-[#c1272d] underline underline-offset-2"
+                    onClick={() => {
+                      setEmail(account.email)
+                      setPassword(account.password)
+                    }}
+                  >
+                    Use {account.role.toLowerCase()} account
+                  </button>
+                </div>
+              ))}
+            </div>
+          </aside>
+        )}
 
         <p className="mt-7 text-center text-sm text-[#625d4f]">
           {isRegister ? text.hasAccount : text.noAccount}{' '}

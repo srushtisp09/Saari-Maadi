@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { apiFetch } from '../auth/api.js'
 import HotspotMap from '../components/HotspotMap.jsx'
 import NotificationBell from '../components/NotificationBell.jsx'
 import PageSkeleton from '../components/PageSkeleton.jsx'
@@ -36,13 +37,15 @@ export default function AnalyticsDashboard() {
   const [analytics, setAnalytics] = useState(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [requestVersion, setRequestVersion] = useState(0)
+  const [reportPage, setReportPage] = useState(1)
   const showToast = useToast()
 
   useEffect(() => {
     const controller = new AbortController()
     async function loadAnalytics() {
       try {
-        const response = await fetch('/api/analytics', {
+        const params = new URLSearchParams({ page: String(reportPage), limit: '50' })
+        const response = await apiFetch(`/api/analytics?${params}`, {
           signal: controller.signal,
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -59,7 +62,7 @@ export default function AnalyticsDashboard() {
 
     void loadAnalytics()
     return () => controller.abort()
-  }, [requestVersion, token])
+  }, [reportPage, requestVersion, token])
 
   const lastThirtyDays = useMemo(
     () => makeLastThirtyDays(analytics?.reportsOverTime || []),
@@ -241,7 +244,13 @@ export default function AnalyticsDashboard() {
               <div className="insights-section-heading">
                 <div>
                   <h2 className="font-baloo">Current report list</h2>
-                  <p>Showing the latest {analytics.reports.length} reports; this is the list exported above.</p>
+                  <p>
+                    Showing reports {((analytics.reportPagination.page - 1) * analytics.reportPagination.limit) + 1}
+                    –{Math.min(
+                      analytics.reportPagination.page * analytics.reportPagination.limit,
+                      analytics.reportPagination.total,
+                    )} of {analytics.reportPagination.total}; this page is exported above.
+                  </p>
                 </div>
                 <button type="button" className="insight-secondary-button" onClick={exportCsv}>Export CSV</button>
               </div>
@@ -257,6 +266,27 @@ export default function AnalyticsDashboard() {
                     </li>
                   ))}
                 </ul>
+              )}
+              {analytics.reportPagination.pages > 1 && (
+                <nav className="report-pagination" aria-label="Analytics report pages">
+                  <button
+                    type="button"
+                    disabled={reportPage <= 1}
+                    onClick={() => setReportPage((value) => value - 1)}
+                  >
+                    Previous
+                  </button>
+                  <span aria-live="polite">
+                    Page {reportPage} of {analytics.reportPagination.pages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={reportPage >= analytics.reportPagination.pages}
+                    onClick={() => setReportPage((value) => value + 1)}
+                  >
+                    Next
+                  </button>
+                </nav>
               )}
             </section>
           </>

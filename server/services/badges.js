@@ -1,10 +1,11 @@
 import Pothole from '../models/Pothole.js'
 import User from '../models/User.js'
 import { BADGE_RULES } from '../config/badges.js'
+import { isDemoMode } from '../config/env.js'
 
 export async function awardBadgesForUser(userId) {
   const [counts] = await Pothole.aggregate([
-    { $match: { reportedBy: userId, seeded: { $ne: true } } },
+    { $match: { reportedBy: userId, ...(isDemoMode() ? {} : { seeded: { $ne: true } }) } },
     {
       $group: {
         _id: null,

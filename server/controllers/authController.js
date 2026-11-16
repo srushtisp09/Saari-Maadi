@@ -1,12 +1,13 @@
-import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
 import { getBadgeDetails } from '../config/badges.js'
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-function createToken(user) {
-  return jwt.sign({ sub: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' })
-}
+import {
+  clearRefreshCookie,
+  createAccessToken,
+  REFRESH_COOKIE,
+  setRefreshCookie,
+  verifyRefreshToken,
+} from '../services/authTokens.js'
+import jwt from 'jsonwebtoken'
 
 function userResponse(user) {
   return {
@@ -23,20 +24,6 @@ function userResponse(user) {
 export async function register(req, res, next) {
   try {
     const { name, email, password } = req.body ?? {}
-    if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 80) {
-      return res.status(400).json({ message: 'Name must be between 2 and 80 characters.' })
-    }
-    if (
-      typeof email !== 'string' ||
-      email.length > 254 ||
-      !EMAIL_PATTERN.test(email.trim())
-    ) {
-      return res.status(400).json({ message: 'Enter a valid email address.' })
-    }
-    if (typeof password !== 'string' || password.length < 8 || password.length > 72) {
-      return res.status(400).json({ message: 'Password must be between 8 and 72 characters.' })
-    }
-
     const normalizedEmail = email.trim().toLowerCase()
     const existing = await User.exists({ email: normalizedEmail })
     if (existing) {
@@ -44,7 +31,8 @@ export async function register(req, res, next) {
     }
 
     const user = await User.create({ name: name.trim(), email: normalizedEmail, password })
-    return res.status(201).json({ token: createToken(user), user: userResponse(user) })
+    setRefreshCookie(res, user)
+    return res.status(201).json({ token: createAccessToken(user), user: userResponse(user) })
   } catch (error) {
     if (error?.code === 11000) {
       return res.status(409).json({ message: 'An account with this email already exists.' })
@@ -56,19 +44,13 @@ export async function register(req, res, next) {
 export async function login(req, res, next) {
   try {
     const { email, password } = req.body ?? {}
-    if (typeof email !== 'string' || !EMAIL_PATTERN.test(email.trim())) {
-      return res.status(400).json({ message: 'Enter a valid email address.' })
-    }
-    if (typeof password !== 'string' || password.length === 0 || password.length > 72) {
-      return res.status(400).json({ message: 'Enter your password.' })
-    }
-
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password')
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: 'Email or password is incorrect.' })
     }
 
-    return res.json({ token: createToken(user), user: userResponse(user) })
+    setRefreshCookie(res, user)
+    return res.json({ token: createAccessToken(user), user: userResponse(user) })
   } catch (error) {
     return next(error)
   }
@@ -76,4 +58,45 @@ export async function login(req, res, next) {
 
 export function currentUser(req, res) {
   return res.json({ user: userResponse(req.user) })
+}
+
+export async function refresh(req, res, next) {
+  const token = req.cookies?.[REFRESH_COOKIE]
+  if (!token) return res.status(401).json({ message: 'Your refresh session has expired. Please sign in again.' })
+
+  try {
+    const payload = verifyRefreshToken(token)
+    if (payload.typ !== 'refresh' || !Number.isInteger(payload.ver)) {
+      return res.status(401).json({ message: 'Your refresh session is invalid. Please sign in again.' })
+    }
+
+    const user = await User.findOneAndUpdate(
+      { _id: payload.sub, tokenVersion: payload.ver },
+      { $inc: { tokenVersion: 1 } },
+      { returnDocument: 'after' },
+    ).select('+tokenVersion')
+    if (!user) {
+      clearRefreshCookie(res)
+      return res.status(401).json({ message: 'Your refresh session has expired. Please sign in again.' })
+    }
+
+    setRefreshCookie(res, user)
+    return res.json({ token: createAccessToken(user) })
+  } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
+      clearRefreshCookie(res)
+      return res.status(401).json({ message: 'Your refresh session has expired. Please sign in again.' })
+    }
+    return next(error)
+  }
+}
+
+export async function logout(req, res, next) {
+  try {
+    await User.updateOne({ _id: req.user._id }, { $inc: { tokenVersion: 1 } })
+    clearRefreshCookie(res)
+    return res.json({ message: 'You have been signed out.' })
+  } catch (error) {
+    return next(error)
+  }
 }

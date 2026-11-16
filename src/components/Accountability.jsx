@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { apiFetch } from '../auth/api.js'
 
 export default function Accountability() {
   const [stats, setStats] = useState(null)
@@ -7,7 +8,7 @@ export default function Accountability() {
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch('/api/stats', { signal: controller.signal })
+    apiFetch('/api/stats', { signal: controller.signal })
       .then(async (response) => {
         const data = await response.json()
         if (!response.ok) throw new Error(data.message || 'Could not load accountability stats.')

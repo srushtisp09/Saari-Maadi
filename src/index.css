@@ -2945,3 +2945,54 @@ html[data-theme="dark"] .sla-progress {
     bottom: 0.25rem;
   }
 }
+
+:focus-visible {
+  outline: 3px solid #8e1c22;
+  outline-offset: 3px;
+}
+
+.report-pagination,
+.map-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 1.25rem 0;
+  color: #494638;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.report-pagination button,
+.map-pagination button,
+.notification-load-more {
+  min-height: 2.5rem;
+  border: 1px solid rgb(27 94 58 / 24%);
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  background: #fffdf6;
+  color: #1b5e3a;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.report-pagination button:disabled,
+.map-pagination button:disabled,
+.notification-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.map-pagination {
+  margin: 0;
+  padding: 0.8rem;
+  background: #fff8e7;
+}
+
+.notification-load-more {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+}

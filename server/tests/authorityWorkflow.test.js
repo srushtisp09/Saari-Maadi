@@ -37,7 +37,11 @@ async function createReport(overrides = {}) {
 }
 
 function authHeader(user) {
-  return `Bearer ${jwt.sign({ sub: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' })}`
+  return `Bearer ${jwt.sign(
+    { sub: user.id, typ: 'access', ver: user.tokenVersion ?? 0 },
+    process.env.JWT_SECRET,
+    { expiresIn: '15m' },
+  )}`
 }
 
 beforeAll(async () => {

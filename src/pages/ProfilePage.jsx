@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { apiFetch } from '../auth/api.js'
 import BadgeList from '../components/BadgeList.jsx'
 import NotificationBell from '../components/NotificationBell.jsx'
 import PageSkeleton from '../components/PageSkeleton.jsx'
@@ -21,12 +22,14 @@ export default function ProfilePage() {
   const { token } = useAuth()
   const [profile, setProfile] = useState(null)
   const [errorMessage, setErrorMessage] = useState('')
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     const controller = new AbortController()
     async function loadProfile() {
       try {
-        const response = await fetch('/api/profile', {
+        const params = new URLSearchParams({ page: String(page), limit: '10' })
+        const response = await apiFetch(`/api/profile?${params}`, {
           signal: controller.signal,
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -43,7 +46,7 @@ export default function ProfilePage() {
 
     void loadProfile()
     return () => controller.abort()
-  }, [token])
+  }, [page, token])
 
   return (
     <main className="insights-page">
@@ -106,6 +109,23 @@ export default function ProfilePage() {
                     </li>
                   ))}
                 </ul>
+              )}
+              {profile.pagination.pages > 1 && (
+                <nav className="report-pagination" aria-label="My report pages">
+                  <button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>
+                    Previous
+                  </button>
+                  <span aria-live="polite">
+                    Page {page} of {profile.pagination.pages} · {profile.pagination.total} reports
+                  </span>
+                  <button
+                    type="button"
+                    disabled={!profile.pagination.hasMore}
+                    onClick={() => setPage((value) => value + 1)}
+                  >
+                    Next
+                  </button>
+                </nav>
               )}
             </section>
           </>

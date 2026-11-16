@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AuthContext } from './context.js'
-
-const TOKEN_KEY = 'sari-maadi-auth-token'
+import { apiFetch, setTokenListener, TOKEN_KEY } from './api.js'
 
 function readToken() {
   try {
@@ -22,8 +21,9 @@ function saveToken(token) {
 }
 
 async function request(path, { token, ...options } = {}) {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     ...options,
+    credentials: 'include',
     headers: {
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -40,6 +40,19 @@ export default function AuthProvider({ children }) {
   const [token, setToken] = useState(readToken)
   const [user, setUser] = useState(null)
   const [isLoading, setIsLoading] = useState(() => Boolean(readToken()))
+
+  const handleTokenUpdate = useCallback((nextToken) => {
+    setToken(nextToken)
+    if (!nextToken) {
+      setUser(null)
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    setTokenListener(handleTokenUpdate)
+    return () => setTokenListener(() => {})
+  }, [handleTokenUpdate])
 
   useEffect(() => {
     if (!token) return undefined
@@ -84,11 +97,15 @@ export default function AuthProvider({ children }) {
     (credentials) => authenticate('register', credentials),
     [authenticate],
   )
-  const logout = useCallback(() => {
-    saveToken(null)
-    setToken(null)
-    setUser(null)
-    setIsLoading(false)
+  const logout = useCallback(async () => {
+    try {
+      if (readToken()) await apiFetch('/api/auth/logout', { method: 'POST' })
+    } finally {
+      saveToken(null)
+      setToken(null)
+      setUser(null)
+      setIsLoading(false)
+    }
   }, [])
 
   const value = useMemo(

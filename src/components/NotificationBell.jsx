@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { apiFetch } from '../auth/api.js'
 import { useAuth } from '../auth/useAuth.js'
 
 function formatTime(value) {
@@ -16,20 +17,28 @@ export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [isMarkingRead, setIsMarkingRead] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState(null)
 
   useEffect(() => {
     const controller = new AbortController()
     async function fetchNotifications() {
       try {
-        const response = await fetch('/api/notifications', {
+        const response = await apiFetch(`/api/notifications?page=${page}&limit=20`, {
           signal: controller.signal,
           headers: { Authorization: `Bearer ${token}` },
         })
         const data = await response.json()
         if (!response.ok) throw new Error(data.message || 'Could not load notifications.')
         if (!controller.signal.aborted) {
-          setNotifications(data.notifications)
+          setNotifications((current) => page === 1
+            ? data.notifications
+            : [
+                ...current,
+                ...data.notifications.filter((item) => !current.some((saved) => saved.id === item.id)),
+              ])
           setUnreadCount(data.unreadCount)
+          setPagination(data.pagination)
           setErrorMessage('')
         }
       } catch (error) {
@@ -45,13 +54,13 @@ export default function NotificationBell() {
       controller.abort()
       window.clearInterval(intervalId)
     }
-  }, [token])
+  }, [page, token])
 
   async function markAllRead() {
     setIsMarkingRead(true)
     setErrorMessage('')
     try {
-      const response = await fetch('/api/notifications/read-all', {
+      const response = await apiFetch('/api/notifications/read-all', {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -103,6 +112,11 @@ export default function NotificationBell() {
               </li>
             ))}
           </ul>
+          {pagination?.hasMore && (
+            <button type="button" className="notification-load-more" onClick={() => setPage((value) => value + 1)}>
+              Load more
+            </button>
+          )}
         </section>
       )}
     </div>

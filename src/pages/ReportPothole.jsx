@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { apiFetch } from '../auth/api.js'
 import { useToast } from '../toast/useToast.js'
 
 const labels = {
@@ -173,7 +174,7 @@ export default function ReportPothole() {
 
     setIsSubmitting(true)
     try {
-      const response = await fetch('/api/potholes', {
+      const response = await apiFetch('/api/potholes', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -210,7 +211,7 @@ export default function ReportPothole() {
     setDuplicateBusy(true)
     setErrorMessage('')
     try {
-      const response = await fetch(`/api/potholes/${duplicate.id}/upvote`, {
+      const response = await apiFetch(`/api/potholes/${duplicate.id}/upvote`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       })

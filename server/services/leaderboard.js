@@ -1,13 +1,14 @@
 import mongoose from 'mongoose'
 import User from '../models/User.js'
 import { getBadgeDetails } from '../config/badges.js'
+import { isDemoMode } from '../config/env.js'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
-export async function getLeaderboard(period, currentUserId) {
+export async function getLeaderboard(period, currentUserId, { page = 1, limit = 10 } = {}) {
   const weekly = period === 'weekly'
   const pipeline = [
-    { $match: { role: 'citizen', seeded: { $ne: true } } },
+    { $match: { role: 'citizen', ...(isDemoMode() ? {} : { seeded: { $ne: true } }) } },
     {
       $addFields: {
         leaderboardPoints: weekly
@@ -39,7 +40,8 @@ export async function getLeaderboard(period, currentUserId) {
     {
       $facet: {
         leaders: [
-          { $limit: 10 },
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
           {
             $project: {
               _id: 0,
@@ -66,6 +68,7 @@ export async function getLeaderboard(period, currentUserId) {
               },
             ]
           : [{ $limit: 0 }],
+        total: [{ $count: 'count' }],
       },
     },
   ]
@@ -80,5 +83,11 @@ export async function getLeaderboard(period, currentUserId) {
         }
       : null,
     period,
+    pagination: {
+      page,
+      limit,
+      total: result.total[0]?.count ?? 0,
+      pages: Math.ceil((result.total[0]?.count ?? 0) / limit),
+    },
   }
 }

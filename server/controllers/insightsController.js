@@ -4,9 +4,13 @@ import { getBadgeDetails } from '../config/badges.js'
 import { SLA_DAYS } from '../config/sla.js'
 import { awardBadgesForUser } from '../services/badges.js'
 import { getLeaderboard } from '../services/leaderboard.js'
+import { createTtlCache } from '../services/ttlCache.js'
+import { isDemoMode } from '../config/env.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const OPEN_STATUSES = ['reported', 'verified', 'in_progress']
+const cityReportCache = createTtlCache(30_000)
+const reportVisibilityFilter = isDemoMode() ? {} : { seeded: { $ne: true } }
 
 function absolutePhotoUrl(req, photoUrl) {
   if (!photoUrl || /^https?:\/\//i.test(photoUrl)) return photoUrl
@@ -20,13 +24,10 @@ function roundToOneDecimal(value) {
 
 export async function getLeaderboardPage(req, res, next) {
   try {
-    const period = req.query.period ?? 'all-time'
-    if (!['weekly', 'all-time'].includes(period)) {
-      return res.status(400).json({ message: 'Period must be "weekly" or "all-time".' })
-    }
+    const { period, page, limit } = req.validated.query
 
     if (req.user?.role === 'citizen') await awardBadgesForUser(req.user._id)
-    const result = await getLeaderboard(period, req.user?._id)
+    const result = await getLeaderboard(period, req.user?._id, { page, limit })
     return res.json({
       ...result,
       currentUserRank: result.currentUser?.rank ?? null,
@@ -38,14 +39,17 @@ export async function getLeaderboardPage(req, res, next) {
 
 export async function getProfile(req, res, next) {
   try {
+    const { page, limit } = req.validated.query
     await awardBadgesForUser(req.user._id)
-    const [user, reports, leaderboard] = await Promise.all([
+    const [user, reports, totalReports, leaderboard] = await Promise.all([
       User.findById(req.user._id).select('name email role points badges createdAt').lean(),
-      Pothole.find({ reportedBy: req.user._id, seeded: { $ne: true } })
+      Pothole.find({ reportedBy: req.user._id, ...reportVisibilityFilter })
         .sort({ createdAt: -1 })
-        .limit(100)
+        .skip((page - 1) * limit)
+        .limit(limit)
         .populate('statusHistory.changedBy', 'name')
         .lean(),
+      Pothole.countDocuments({ reportedBy: req.user._id, ...reportVisibilityFilter }),
       getLeaderboard('all-time', req.user._id),
     ])
 
@@ -72,6 +76,13 @@ export async function getProfile(req, res, next) {
         fixedAt: report.fixedAt,
         statusHistory: report.statusHistory || [],
       })),
+      pagination: {
+        page,
+        limit,
+        total: totalReports,
+        pages: Math.ceil(totalReports / limit),
+        hasMore: page * limit < totalReports,
+      },
     })
   } catch (error) {
     return next(error)
@@ -80,10 +91,11 @@ export async function getProfile(req, res, next) {
 
 export async function getAnalytics(req, res, next) {
   try {
+    const { page, limit } = req.validated.query
     const now = new Date()
     const thirtyDaysAgo = new Date(now.getTime() - 30 * DAY_MS)
     const [analytics = {}] = await Pothole.aggregate([
-      { $match: { seeded: { $ne: true } } },
+      { $match: reportVisibilityFilter },
       {
         $facet: {
           reportsByStatus: [
@@ -216,7 +228,8 @@ export async function getAnalytics(req, res, next) {
           ],
           reports: [
             { $sort: { createdAt: -1 } },
-            { $limit: 200 },
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
             {
               $lookup: {
                 from: User.collection.name,
@@ -243,6 +256,7 @@ export async function getAnalytics(req, res, next) {
               },
             },
           ],
+          reportCount: [{ $count: 'total' }],
         },
       },
     ])
@@ -272,6 +286,12 @@ export async function getAnalytics(req, res, next) {
         ...report,
         photoUrl: absolutePhotoUrl(req, report.photoUrl),
       })),
+      reportPagination: {
+        page,
+        limit,
+        total: analytics.reportCount?.[0]?.total ?? 0,
+        pages: Math.ceil((analytics.reportCount?.[0]?.total ?? 0) / limit),
+      },
     })
   } catch (error) {
     return next(error)
@@ -280,8 +300,13 @@ export async function getAnalytics(req, res, next) {
 
 export async function getCityReport(req, res, next) {
   try {
+    const cachedReportCard = cityReportCache.get()
+    if (cachedReportCard) {
+      return res.set('Cache-Control', 'public, max-age=30').json(cachedReportCard)
+    }
+
     const [reportCard = {}] = await Pothole.aggregate([
-      { $match: { seeded: { $ne: true } } },
+      { $match: reportVisibilityFilter },
       {
         $facet: {
           totals: [
@@ -334,7 +359,7 @@ export async function getCityReport(req, res, next) {
                       $expr: {
                         $and: [
                           { $eq: ['$_id', '$$reporterId'] },
-                          { $ne: ['$seeded', true] },
+                          ...(isDemoMode() ? [] : [{ $ne: ['$seeded', true] }]),
                         ],
                       },
                     },
@@ -364,7 +389,7 @@ export async function getCityReport(req, res, next) {
     ])
 
     const totals = reportCard.totals?.[0] || { totalReported: 0, totalFixed: 0 }
-    return res.json({
+    const response = {
       totalReported: totals.totalReported,
       totalFixed: totals.totalFixed,
       percentFixed: totals.totalReported
@@ -377,7 +402,9 @@ export async function getCityReport(req, res, next) {
         badges: getBadgeDetails(contributor.badges),
       })),
       generatedAt: new Date(),
-    })
+    }
+    cityReportCache.set(response)
+    return res.set('Cache-Control', 'public, max-age=30').json(response)
   } catch (error) {
     return next(error)
   }

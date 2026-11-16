@@ -13,8 +13,8 @@ export async function requireAuth(req, res, next) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET)
-    const user = await User.findById(payload.sub)
-    if (!user) {
+    const user = await User.findById(payload.sub).select('+tokenVersion')
+    if (!user || payload.typ !== 'access' || payload.ver !== user.tokenVersion) {
       return res.status(401).json({ message: 'This account no longer exists.' })
     }
 

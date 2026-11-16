@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { apiFetch } from '../auth/api.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useToast } from '../toast/useToast.js'
 
@@ -21,7 +22,7 @@ export default function UpvoteButton({ report, labels = {}, onUpdated }) {
     setErrorMessage('')
     setLoginPrompt(false)
     try {
-      const response = await fetch(`/api/potholes/${current.id}/upvote`, {
+      const response = await apiFetch(`/api/potholes/${current.id}/upvote`, {
         method: current.hasUpvoted ? 'DELETE' : 'POST',
         headers: { Authorization: `Bearer ${token}` },
       })

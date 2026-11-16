@@ -56,6 +56,11 @@ const userSchema = new mongoose.Schema({
     default: 0,
     min: 0,
   },
+  tokenVersion: {
+    type: Number,
+    default: 0,
+    select: false,
+  },
   pointsHistory: {
     type: [pointsHistorySchema],
     default: [],

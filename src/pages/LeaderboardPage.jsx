@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
+import { apiFetch } from '../auth/api.js'
 import BadgeList from '../components/BadgeList.jsx'
 import NotificationBell from '../components/NotificationBell.jsx'
 import PageSkeleton from '../components/PageSkeleton.jsx'
@@ -8,6 +9,7 @@ import PageSkeleton from '../components/PageSkeleton.jsx'
 export default function LeaderboardPage() {
   const { token, user } = useAuth()
   const [period, setPeriod] = useState('all-time')
+  const [page, setPage] = useState(1)
   const [data, setData] = useState(null)
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -15,7 +17,8 @@ export default function LeaderboardPage() {
     const controller = new AbortController()
     async function loadLeaderboard() {
       try {
-        const response = await fetch(`/api/leaderboard?period=${period}`, {
+        const params = new URLSearchParams({ period, page: String(page), limit: '10' })
+        const response = await apiFetch(`/api/leaderboard?${params}`, {
           signal: controller.signal,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         })
@@ -32,7 +35,7 @@ export default function LeaderboardPage() {
 
     void loadLeaderboard()
     return () => controller.abort()
-  }, [period, token])
+  }, [page, period, token])
 
   const leaders = (data?.leaders || []).filter((person) => person.id !== data?.currentUser?.id)
 
@@ -63,7 +66,10 @@ export default function LeaderboardPage() {
             type="button"
             role="tab"
             aria-selected={period === 'weekly'}
-            onClick={() => setPeriod('weekly')}
+            onClick={() => {
+              setPage(1)
+              setPeriod('weekly')
+            }}
           >
             This week
           </button>
@@ -71,7 +77,10 @@ export default function LeaderboardPage() {
             type="button"
             role="tab"
             aria-selected={period === 'all-time'}
-            onClick={() => setPeriod('all-time')}
+            onClick={() => {
+              setPage(1)
+              setPeriod('all-time')
+            }}
           >
             All time
           </button>
@@ -110,6 +119,23 @@ export default function LeaderboardPage() {
           <p className="leaderboard-signin">
             <Link to="/login">Log in</Link> to see your personal rank.
           </p>
+        )}
+        {data?.pagination?.pages > 1 && (
+          <nav className="report-pagination" aria-label="Leaderboard pages">
+            <button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>
+              Previous
+            </button>
+            <span aria-live="polite">
+              Page {page} of {data.pagination.pages} · {data.pagination.total} citizens
+            </span>
+            <button
+              type="button"
+              disabled={page >= data.pagination.pages}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              Next
+            </button>
+          </nav>
         )}
       </section>
     </main>

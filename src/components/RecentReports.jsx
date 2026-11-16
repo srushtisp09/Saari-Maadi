@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { apiFetch } from '../auth/api.js'
 import { useAuth } from '../auth/useAuth.js'
 import UpvoteButton from './UpvoteButton.jsx'
 import PageSkeleton from './PageSkeleton.jsx'
@@ -16,15 +17,17 @@ export default function RecentReports() {
   const [errorMessage, setErrorMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [sort, setSort] = useState('newest')
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState(null)
   const { token } = useAuth()
 
   useEffect(() => {
     const controller = new AbortController()
-    const params = new URLSearchParams({ limit: '100' })
+    const params = new URLSearchParams({ limit: '6', page: String(page) })
     if (sort === 'priority') params.set('sort', 'priority')
     async function loadReports() {
       try {
-        const response = await fetch(`/api/potholes?${params}`, {
+        const response = await apiFetch(`/api/potholes?${params}`, {
           signal: controller.signal,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         })
@@ -32,6 +35,7 @@ export default function RecentReports() {
         if (!response.ok) throw new Error(data.message || 'Could not load reports.')
         if (!controller.signal.aborted) {
           setReports(data.reports)
+          setPagination(data.pagination)
           setErrorMessage('')
         }
       } catch (error) {
@@ -43,7 +47,7 @@ export default function RecentReports() {
 
     void loadReports()
     return () => controller.abort()
-  }, [sort, token])
+  }, [page, sort, token])
 
   const upvoteLabels = {
     upvote: 'Upvote',
@@ -70,6 +74,7 @@ export default function RecentReports() {
           <span>Sort reports</span>
           <select value={sort} onChange={(event) => {
             setLoading(true)
+            setPage(1)
             setSort(event.target.value)
           }}>
             <option value="newest">Newest</option>
@@ -91,7 +96,7 @@ export default function RecentReports() {
       )}
       {!loading && reports.length > 0 && (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {reports.slice(0, 6).map((report) => (
+          {reports.map((report) => (
             <li className="recent-report-card" key={report.id}>
               <Link to={`/potholes/${report.id}`} className="recent-report-image-link">
                 <img
@@ -134,6 +139,21 @@ export default function RecentReports() {
             </li>
           ))}
         </ul>
+      )}
+      {!loading && pagination?.pages > 1 && (
+        <nav className="report-pagination" aria-label="Recent report pages">
+          <button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>
+            Previous
+          </button>
+          <span aria-live="polite">Page {page} of {pagination.pages}</span>
+          <button
+            type="button"
+            disabled={!pagination.hasMore}
+            onClick={() => setPage((value) => value + 1)}
+          >
+            Next
+          </button>
+        </nav>
       )}
     </section>
   )

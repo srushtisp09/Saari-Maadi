@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AuthProvider from './auth/AuthProvider.jsx'
 import Home from './components/Home.jsx'
@@ -45,6 +45,29 @@ function rememberIntro() {
   }
 }
 
+function ServerWakeupNotice() {
+  const [isSlow, setIsSlow] = useState(false)
+
+  useEffect(() => {
+    function updateNotice(event) {
+      setIsSlow(event.detail.active)
+    }
+
+    window.addEventListener('api-slow-request', updateNotice)
+    return () => window.removeEventListener('api-slow-request', updateNotice)
+  }, [])
+
+  return isSlow ? (
+    <p
+      role="status"
+      aria-live="polite"
+      className="fixed left-1/2 top-4 z-[100] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 rounded-full bg-[#1b5e3a] px-5 py-3 text-center text-sm font-bold text-white shadow-lg"
+    >
+      Waking up the server, this takes up to a minute
+    </p>
+  ) : null
+}
+
 function Introduction() {
   const [showIntro, setShowIntro] = useState(shouldPlayIntro)
 
@@ -66,6 +89,7 @@ function App() {
       <ThemeProvider>
         <BrowserRouter>
           <ToastProvider>
+            <ServerWakeupNotice />
             <ThemeToggle />
             <Routes>
               <Route path="/" element={<Introduction />} />

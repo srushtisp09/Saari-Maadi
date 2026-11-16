@@ -2,12 +2,15 @@ import Notification from '../models/Notification.js'
 
 export async function listNotifications(req, res, next) {
   try {
-    const [notifications, unreadCount] = await Promise.all([
+    const { page, limit } = req.validated.query
+    const [notifications, unreadCount, total] = await Promise.all([
       Notification.find({ user: req.user._id })
         .sort({ createdAt: -1 })
-        .limit(30)
+        .skip((page - 1) * limit)
+        .limit(limit)
         .populate('reportId', '_id'),
       Notification.countDocuments({ user: req.user._id, read: false }),
+      Notification.countDocuments({ user: req.user._id }),
     ])
 
     return res.json({
@@ -20,6 +23,13 @@ export async function listNotifications(req, res, next) {
         createdAt: notification.createdAt,
       })),
       unreadCount,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      },
     })
   } catch (error) {
     return next(error)

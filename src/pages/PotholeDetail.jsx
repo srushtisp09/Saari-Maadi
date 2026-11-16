@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import PotholeMap from '../components/PotholeMap.jsx'
 import UpvoteButton from '../components/UpvoteButton.jsx'
 import { useAuth } from '../auth/useAuth.js'
+import { apiFetch } from '../auth/api.js'
 import NotificationBell from '../components/NotificationBell.jsx'
 import BadgeList from '../components/BadgeList.jsx'
 import PageSkeleton from '../components/PageSkeleton.jsx'
@@ -101,7 +102,7 @@ export default function PotholeDetail() {
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch(`/api/potholes/${encodeURIComponent(id)}`, {
+    apiFetch(`/api/potholes/${encodeURIComponent(id)}`, {
       signal: controller.signal,
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })

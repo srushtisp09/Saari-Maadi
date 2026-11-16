@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 
-const uploadsDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../uploads')
+export const uploadsDirectory = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../uploads')
 const acceptedTypes = new Map([
   ['image/jpeg', '.jpg'],
   ['image/png', '.png'],

@@ -115,6 +115,10 @@ const potholeSchema = new mongoose.Schema({
 
 potholeSchema.index({ location: '2dsphere' })
 potholeSchema.index({ createdAt: -1 })
+potholeSchema.index({ status: 1, createdAt: -1 })
+potholeSchema.index({ status: 1, 'ai.severity': 1 })
+potholeSchema.index({ upvoteCount: -1 })
+potholeSchema.index({ upvotes: 1 })
 
 const Pothole = mongoose.model('Pothole', potholeSchema)
 
